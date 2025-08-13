@@ -27,7 +27,8 @@ GoogleSignin.configure({
 
 interface GoogleAuthContextType {
   user: User | null;
-  initializing: boolean;
+  isLoggedIn: boolean;
+  isLoading: boolean;
   signIn: () => Promise<any>;
   signOut: () => Promise<void>;
 }
@@ -36,23 +37,20 @@ const GoogleAuthContext = createContext<GoogleAuthContextType | undefined>(undef
 
 interface GoogleAuthProviderProps {
   children: ReactNode;
-  onInit: () => void;
 }
 
 type User = FirebaseAuthTypes.User;
 
-export function GoogleAuthProvider({ children, onInit }: GoogleAuthProviderProps) {
-  const [initializing, setInitializing] = useState(true);
+export function GoogleAuthProvider({ children }: GoogleAuthProviderProps) {
+  const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
 
   const handleAuthStateChanged = useCallback(
     (user: User | null) => {
-      console.info('AuthState Updated:', user);
       setUser(user);
-      onInit?.();
-      if (initializing) setInitializing(false);
+      if (isLoading) setIsLoading(false);
     },
-    [initializing, onInit]
+    [isLoading]
   );
 
   useEffect(() => {
@@ -62,6 +60,7 @@ export function GoogleAuthProvider({ children, onInit }: GoogleAuthProviderProps
 
   const signIn = useCallback(async () => {
     try {
+      setIsLoading(true);
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const signInResult = await GoogleSignin.signIn();
 
@@ -75,24 +74,30 @@ export function GoogleAuthProvider({ children, onInit }: GoogleAuthProviderProps
       }
 
       const googleCredential = _GoogleAuthProvider.credential(idToken);
-      return signInWithCredential(getAuth(), googleCredential);
+      await signInWithCredential(getAuth(), googleCredential);
     } catch (error) {
       console.error('Sign in error:', error);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   const signOut = useCallback(async () => {
     try {
+      setIsLoading(true);
       await GoogleSignin.signOut();
       await getAuth().signOut();
     } catch (error) {
       console.error('Google SignOut Error:', error);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   const contextValue: GoogleAuthContextType = {
     user,
-    initializing,
+    isLoading,
+    isLoggedIn: !!user,
     signIn,
     signOut,
   };
