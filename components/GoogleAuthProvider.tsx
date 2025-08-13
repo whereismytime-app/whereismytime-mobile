@@ -36,11 +36,12 @@ const GoogleAuthContext = createContext<GoogleAuthContextType | undefined>(undef
 
 interface GoogleAuthProviderProps {
   children: ReactNode;
+  onInit: () => void;
 }
 
 type User = FirebaseAuthTypes.User;
 
-export function GoogleAuthProvider({ children }: GoogleAuthProviderProps) {
+export function GoogleAuthProvider({ children, onInit }: GoogleAuthProviderProps) {
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState<User | null>(null);
 
@@ -48,9 +49,10 @@ export function GoogleAuthProvider({ children }: GoogleAuthProviderProps) {
     (user: User | null) => {
       console.info('AuthState Updated:', user);
       setUser(user);
+      onInit?.();
       if (initializing) setInitializing(false);
     },
-    [initializing]
+    [initializing, onInit]
   );
 
   useEffect(() => {
