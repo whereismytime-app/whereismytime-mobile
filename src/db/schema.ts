@@ -15,6 +15,7 @@ export const calendars = table('calendars', {
   title: text().notNull(),
   timeZone: text().notNull(),
   syncToken: text(),
+  lastSyncAt: integer({ mode: 'timestamp' }),
   ...timestamps,
 });
 

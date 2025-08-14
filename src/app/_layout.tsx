@@ -1,6 +1,7 @@
 import '../global.css';
 
 import { GoogleAuthProvider, useGoogleAuth } from '@/components/GoogleAuthProvider';
+import { CalendarSyncProvider } from '@/components/CalendarSyncProvider';
 import { SplashScreenHandler } from '@/components/SplashScreen';
 import { SQLiteProvider } from '@/db/SQLiteProvider';
 import { Stack } from 'expo-router';
@@ -32,10 +33,12 @@ export default function RootLayout() {
   return (
     <SQLiteProvider>
       <GoogleAuthProvider>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <SplashScreenHandler />
-          <AppNavigator />
-        </GestureHandlerRootView>
+        <CalendarSyncProvider>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <SplashScreenHandler />
+            <AppNavigator />
+          </GestureHandlerRootView>
+        </CalendarSyncProvider>
       </GoogleAuthProvider>
     </SQLiteProvider>
   );

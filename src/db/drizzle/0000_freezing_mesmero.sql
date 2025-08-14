@@ -3,6 +3,7 @@ CREATE TABLE `calendars` (
 	`title` text NOT NULL,
 	`timeZone` text NOT NULL,
 	`syncToken` text,
+	`lastSyncAt` integer,
 	`updatedAt` integer DEFAULT (unixepoch()),
 	`createdAt` integer DEFAULT (unixepoch())
 );

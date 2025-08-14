@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9908c175-33d8-455e-83c7-5d3da5e1410a",
+  "id": "97b275b9-3140-4bef-8a65-4ad134de8361",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "calendars": {
@@ -31,6 +31,13 @@
         "syncToken": {
           "name": "syncToken",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lastSyncAt": {
+          "name": "lastSyncAt",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

@@ -12,11 +12,13 @@ import { createContext, useContext } from 'react';
 
 const DATABASE_NAME = 'main';
 
+export type DrizzleDB = ExpoSQLiteDatabase<typeof schema> & {
+  $client: SQLiteDatabase;
+};
+
 type DrizzleContextValue = {
   isReady: boolean;
-  drizzle: ExpoSQLiteDatabase<typeof schema> & {
-    $client: SQLiteDatabase;
-  };
+  drizzle: DrizzleDB;
 } | null;
 const DrizzleContext = createContext<DrizzleContextValue>(null);
 
