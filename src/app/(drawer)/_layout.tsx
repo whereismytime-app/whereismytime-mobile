@@ -18,6 +18,16 @@ const DrawerLayout = () => {
         }}
       />
       <Drawer.Screen
+        name="categories"
+        options={{
+          headerTitle: 'Categories',
+          drawerLabel: 'Categories',
+          drawerIcon: ({ size, color }) => (
+            <Ionicons name="folder-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
         name="(tabs)"
         options={{
           headerTitle: 'Tabs',
