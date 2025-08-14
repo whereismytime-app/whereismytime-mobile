@@ -4,6 +4,9 @@ module.exports = function (api) {
 
   plugins.push('react-native-reanimated/plugin');
 
+  // drizzle-orm
+  plugins.push(['inline-import', { extensions: ['.sql'] }]);
+
   return {
     presets: [['babel-preset-expo', { jsxImportSource: 'nativewind' }], 'nativewind/babel'],
 

@@ -14,6 +14,7 @@ This is a React Native mobile app called "whereismytime" built with Expo Router 
 - **NativeWind** (Tailwind CSS for React Native)
 - **Firebase Auth** with Google Sign-in integration
 - **Zustand** for state management
+- **DrizzleORM** with **expo-sqlite** for local database management
 - **EAS** for builds and deployment
 
 ## Development Commands
@@ -63,6 +64,18 @@ npm run prebuild
 - **Zustand store** in `src/store/store.ts` - currently has sample "bears" state, likely to be replaced with app-specific state
 - **Firebase Auth state** managed by `GoogleAuthProvider` context
 
+### Database Management
+
+- **DrizzleORM** with **expo-sqlite** for local data storage
+- Database schema defined in `src/db/schema.ts` with three main entities:
+  - **Calendars**: Stores Google Calendar information with sync tokens
+  - **Events**: Calendar events with effective duration calculations for overlapping events
+  - **Categories**: User-defined categories with rules for automatic event mapping
+- Database migrations managed in `src/db/drizzle/` directory
+- Drizzle configuration in `drizzle.config.ts` using SQLite dialect with Expo driver
+- Type definitions exported from schema: `DBCalendar`, `DBEvent`, `Category`
+- Category rules support regex matching and calendar-based filtering (defined in `src/types/category_rule.ts`)
+
 ### Authentication
 
 - Firebase Authentication with Google Sign-in configured in `src/components/GoogleAuthProvider.tsx`
@@ -91,6 +104,8 @@ All source code is organized under the `src/` directory:
 - `src/app/` - Expo Router navigation screens
 - `src/components/` - Reusable React components
 - `src/store/` - Zustand state management
+- `src/db/` - Database schema and migrations using DrizzleORM
+- `src/types/` - TypeScript type definitions
 - `src/global.css` - NativeWind/Tailwind global styles
 
 ## Important Notes

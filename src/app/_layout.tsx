@@ -2,6 +2,7 @@ import '../global.css';
 
 import { GoogleAuthProvider, useGoogleAuth } from '@/components/GoogleAuthProvider';
 import { SplashScreenHandler } from '@/components/SplashScreen';
+import { SQLiteProvider } from '@/db/SQLiteProvider';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -29,11 +30,13 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   return (
-    <GoogleAuthProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SplashScreenHandler />
-        <AppNavigator />
-      </GestureHandlerRootView>
-    </GoogleAuthProvider>
+    <SQLiteProvider>
+      <GoogleAuthProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <SplashScreenHandler />
+          <AppNavigator />
+        </GestureHandlerRootView>
+      </GoogleAuthProvider>
+    </SQLiteProvider>
   );
 }
