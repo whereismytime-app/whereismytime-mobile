@@ -1,10 +1,11 @@
 import { DrizzleDB } from '@/db/SQLiteProvider';
 import { calendars, events } from '@/db/schema';
 import { GoogleCalendarClient } from '@/integrations/google_calendar';
+import { EventCategorizationService } from './EventCategorizationService';
 import { eq } from 'drizzle-orm';
 
 export interface SyncProgress {
-  status: 'idle' | 'syncing_calendars' | 'syncing_events';
+  status: 'idle' | 'syncing_calendars' | 'syncing_events' | 'categorizing_events';
   currentCalendar?: string;
   totalCalendars?: number;
   processedCalendars?: number;
@@ -17,6 +18,7 @@ export interface LastSyncInfo {
   timestamp: Date;
   calendarsSynced: number;
   eventsSynced: number;
+  eventsCategorized?: number;
   errors: string[];
 }
 
@@ -25,15 +27,20 @@ export class CalendarSyncService {
   private drizzle: DrizzleDB;
   private progressCallback?: (progress: SyncProgress) => void;
   private lastSyncInfo?: LastSyncInfo;
+  private categorizationService: EventCategorizationService;
+  private autoCategorize: boolean = true;
 
   constructor(
     googleClient: GoogleCalendarClient,
     drizzle: DrizzleDB,
-    progressCallback?: (progress: SyncProgress) => void
+    progressCallback?: (progress: SyncProgress) => void,
+    autoCategorize: boolean = true
   ) {
     this.googleClient = googleClient;
     this.drizzle = drizzle;
     this.progressCallback = progressCallback;
+    this.categorizationService = new EventCategorizationService(drizzle);
+    this.autoCategorize = autoCategorize;
   }
 
   setProgressCallback(callback: (progress: SyncProgress) => void) {
@@ -118,6 +125,24 @@ export class CalendarSyncService {
         }
       }
 
+      // Auto-categorize events if enabled
+      let eventsCategorized = 0;
+      if (this.autoCategorize) {
+        this.updateProgress({
+          status: 'categorizing_events',
+          percentage: 95,
+        });
+
+        try {
+          const categorizationStats = await this.categorizationService.categorizeEvents();
+          eventsCategorized = categorizationStats.categorized;
+        } catch (error) {
+          const errorMsg = `Failed to categorize events: ${error}`;
+          console.error(errorMsg);
+          errors.push(errorMsg);
+        }
+      }
+
       this.updateProgress({
         status: 'idle',
         percentage: 100,
@@ -127,6 +152,7 @@ export class CalendarSyncService {
         timestamp: new Date(),
         calendarsSynced,
         eventsSynced: totalEventsSynced,
+        eventsCategorized,
         errors,
       };
     } catch (error) {
@@ -265,6 +291,54 @@ export class CalendarSyncService {
   async syncSelectedCalendars(calendarIds: string[]): Promise<void> {
     // Implementation deferred as per requirements
     throw new Error('syncSelectedCalendars is not yet implemented');
+  }
+
+  /**
+   * Enable or disable auto-categorization
+   */
+  setAutoCategorize(enabled: boolean) {
+    this.autoCategorize = enabled;
+  }
+
+  /**
+   * Manually trigger event categorization
+   */
+  async categorizeAllEvents(): Promise<void> {
+    this.updateProgress({
+      status: 'categorizing_events',
+      percentage: 0,
+    });
+
+    try {
+      const stats = await this.categorizationService.categorizeEvents();
+      
+      this.updateProgress({
+        status: 'idle',
+        percentage: 100,
+      });
+
+      // Update last sync info with categorization results
+      if (this.lastSyncInfo) {
+        this.lastSyncInfo = {
+          ...this.lastSyncInfo,
+          eventsCategorized: stats.categorized,
+          timestamp: new Date(),
+        };
+      }
+    } catch (error) {
+      this.updateProgress({
+        status: 'idle',
+        percentage: 0,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get access to the categorization service for advanced operations
+   */
+  getCategorizationService(): EventCategorizationService {
+    return this.categorizationService;
   }
 
   private parseEventTime(timeObj?: {

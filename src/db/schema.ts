@@ -34,11 +34,18 @@ export const events = table(
     end: integer({ mode: 'timestamp' }),
     // Duration in minutes, distributed across overlapping events
     effectiveDuration: integer().notNull(),
+    // Category mapping
+    categoryId: text().references(() => categories.id, {
+      onDelete: 'set null',
+      onUpdate: 'restrict',
+    }),
+    isManuallyCategorized: integer({ mode: 'boolean' }),
     ...timestamps,
   },
   (t) => [
     index('events_start_idx').on(t.start),
     index('events_end_idx').on(t.end),
+    index('events_category_idx').on(t.categoryId),
     // Add composite index if necessary
     // index('events_calendar_start_idx').on(t.calendarId, t.start),
   ]
@@ -64,6 +71,11 @@ export const eventsRelations = relations(events, ({ one }) => ({
     references: [calendars.id],
     relationName: 'calendarEvents',
   }),
+  category: one(categories, {
+    fields: [events.categoryId],
+    references: [categories.id],
+    relationName: 'categoryEvents',
+  }),
 }));
 
 export const calendarsRelations = relations(calendars, ({ many }) => ({
@@ -80,6 +92,9 @@ export const categoriesRelations = relations(categories, ({ one, many }) => ({
   }),
   children: many(categories, {
     relationName: 'parentCategory',
+  }),
+  events: many(events, {
+    relationName: 'categoryEvents',
   }),
 }));
 
