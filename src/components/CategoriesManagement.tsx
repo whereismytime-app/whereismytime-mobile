@@ -4,9 +4,11 @@ import {
   type CreateCategoryInput,
   type UpdateCategoryInput,
 } from '@/services/CategoryService';
+import { type CategoryRule } from '@/types/category_rule';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { useDrizzle } from '../db/SQLiteProvider';
 
 interface CategoryFormProps {
@@ -16,6 +18,79 @@ interface CategoryFormProps {
   category?: CategoryWithChildren;
   parentCategory?: CategoryWithChildren;
 }
+
+interface RuleItemProps {
+  rule: CategoryRule;
+  index: number;
+  onUpdate: (index: number, rule: CategoryRule) => void;
+  onRemove: (index: number) => void;
+}
+
+const RuleItem: React.FC<RuleItemProps> = ({ rule, index, onUpdate, onRemove }) => {
+  const ruleTypes = [
+    { label: 'Contains', value: 'CONTAINS' },
+    { label: 'Starts with', value: 'STARTS_WITH' },
+    { label: 'Ends with', value: 'ENDS_WITH' },
+    { label: 'Regex pattern', value: 'REGEX' },
+  ] as const;
+
+  const updateRuleType = (type: CategoryRule['type']) => {
+    onUpdate(index, { ...rule, type });
+  };
+
+  const updateRuleContent = (content: string) => {
+    onUpdate(index, { ...rule, content });
+  };
+
+  return (
+    <View className="mb-3 rounded-lg border border-gray-300 p-3">
+      <View className="mb-3 flex-row items-center justify-between">
+        <Text className="font-medium text-gray-700">Rule {index + 1}</Text>
+        <TouchableOpacity onPress={() => onRemove(index)} className="p-1">
+          <Ionicons name="close" size={20} color="#EF4444" />
+        </TouchableOpacity>
+      </View>
+
+      <View className="mb-3">
+        <Text className="mb-2 text-sm font-medium text-gray-700">Match Type</Text>
+        <View className="rounded-lg border border-gray-300">
+          <Picker selectedValue={rule.type} onValueChange={updateRuleType} style={{ height: 50 }}>
+            {ruleTypes.map((type) => (
+              <Picker.Item key={type.value} label={type.label} value={type.value} />
+            ))}
+          </Picker>
+        </View>
+      </View>
+
+      <View>
+        <Text className="mb-2 text-sm font-medium text-gray-700">
+          {rule.type === 'REGEX' ? 'Regex Pattern' : 'Text to Match'}
+        </Text>
+        <TextInput
+          className="rounded-lg border border-gray-300 px-3 py-2"
+          value={rule.content}
+          onChangeText={updateRuleContent}
+          placeholder={
+            rule.type === 'CONTAINS'
+              ? 'e.g., meeting'
+              : rule.type === 'STARTS_WITH'
+                ? 'e.g., Work:'
+                : rule.type === 'ENDS_WITH'
+                  ? 'e.g., - Personal'
+                  : 'e.g., ^(Meeting|Call).*'
+          }
+          multiline={rule.type === 'REGEX'}
+        />
+        {rule.type === 'REGEX' && (
+          <Text className="mt-1 text-xs text-gray-500">
+            Use JavaScript regex syntax. Events with titles matching this pattern will be
+            categorized.
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+};
 
 const CategoryForm: React.FC<CategoryFormProps> = ({
   visible,
@@ -27,6 +102,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
   const [name, setName] = useState('');
   const [color, setColor] = useState('#3B82F6');
   const [priority, setPriority] = useState('0');
+  const [rules, setRules] = useState<CategoryRule[]>([]);
 
   const colors = [
     '#3B82F6',
@@ -44,12 +120,33 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
       setName(category.name);
       setColor(category.color);
       setPriority((category.priority ?? 0).toString());
+      setRules(category.rules || []);
     } else {
       setName('');
       setColor('#3B82F6');
       setPriority('0');
+      setRules([]);
     }
   }, [category]);
+
+  const addRule = () => {
+    const newRule: CategoryRule = {
+      type: 'CONTAINS',
+      content: '',
+    };
+    setRules([...rules, newRule]);
+  };
+
+  const updateRule = (index: number, updatedRule: CategoryRule) => {
+    const newRules = [...rules];
+    newRules[index] = updatedRule;
+    setRules(newRules);
+  };
+
+  const removeRule = (index: number) => {
+    const newRules = rules.filter((_, i) => i !== index);
+    setRules(newRules);
+  };
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -61,6 +158,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
       name: name.trim(),
       color,
       priority: parseInt(priority) || 0,
+      rules: rules.length > 0 ? rules : undefined,
       ...(parentCategory && { parentCategoryId: parentCategory.id }),
     };
 
@@ -132,8 +230,36 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
               keyboardType="numeric"
             />
             <Text className="mt-1 text-sm text-gray-600">
-              Higher priority categories appear first
+              When an Event matches multiple categories, the one with the highest priority (highest
+              number) will be used.
             </Text>
+          </View>
+
+          <View className="mb-4">
+            <View className="mb-3 flex-row items-center justify-between">
+              <Text className="text-lg font-medium">Rules</Text>
+              <TouchableOpacity
+                onPress={addRule}
+                className="flex-row items-center rounded-lg bg-blue-500 px-3 py-2">
+                <Ionicons name="add" size={16} color="white" />
+                <Text className="ml-1 text-sm font-semibold text-white">Add Rule</Text>
+              </TouchableOpacity>
+            </View>
+            {rules.length === 0 ? (
+              <Text className="text-gray-500">
+                No rules defined. Events won&apos;t be automatically categorized.
+              </Text>
+            ) : (
+              rules.map((rule, index) => (
+                <RuleItem
+                  key={index}
+                  rule={rule}
+                  index={index}
+                  onUpdate={updateRule}
+                  onRemove={removeRule}
+                />
+              ))
+            )}
           </View>
         </ScrollView>
       </View>

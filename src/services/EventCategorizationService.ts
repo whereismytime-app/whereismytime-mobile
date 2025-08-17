@@ -221,27 +221,30 @@ export class EventCategorizationService {
    * Check if an event matches a specific rule
    */
   private async eventMatchesRule(event: DBEvent, rule: CategoryRule): Promise<boolean> {
-    // Calendar-based matching
-    if (rule.calendarId && event.calendarId !== rule.calendarId) {
-      return false;
-    }
+    const title = (event.title || '').toLowerCase();
+    const content = rule.content.toLowerCase();
 
-    // Regex-based matching on title and description
-    if (rule.regex) {
-      try {
-        const regex = new RegExp(rule.regex, 'i'); // Case insensitive
-        const title = event.title || '';
-        const description = event.description || '';
+    switch (rule.type) {
+      case 'STARTS_WITH':
+        return title.startsWith(content);
 
-        return regex.test(title) || regex.test(description);
-      } catch (error) {
-        // Invalid regex - skip this rule
-        console.warn(`Invalid regex in category rule: ${rule.regex}`, error);
+      case 'ENDS_WITH':
+        return title.endsWith(content);
+
+      case 'CONTAINS':
+        return title.includes(content);
+
+      case 'REGEX':
+        try {
+          const regex = new RegExp(rule.content, 'i');
+          return regex.test(event.title || '');
+        } catch (error) {
+          console.warn(`Invalid regex in category rule: ${rule.content}`, error);
+          return false;
+        }
+
+      default:
         return false;
-      }
     }
-
-    // If no specific rules, match all events in the calendar
-    return Boolean(rule.calendarId);
   }
 }
