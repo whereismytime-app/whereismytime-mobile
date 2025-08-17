@@ -1,4 +1,3 @@
-import '@/polyfill/crypto';
 import { nanoid } from 'nanoid';
 import { sql, relations } from 'drizzle-orm';
 import { sqliteTable as table, text, integer, index } from 'drizzle-orm/sqlite-core';
