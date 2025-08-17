@@ -22,8 +22,8 @@ export class EventCategorizationService {
 
   constructor(private db: DrizzleDB) {}
 
-  async getCategories() {
-    if (this.categories) return this.categories;
+  async getCategories(refresh = false) {
+    if (this.categories && !refresh) return this.categories;
 
     // Get all categories with rules ordered by priority (highest first)
     this.categories = await this.db

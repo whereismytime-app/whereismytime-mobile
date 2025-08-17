@@ -118,12 +118,8 @@
           "name": "categories_parentCategoryId_categories_id_fk",
           "tableFrom": "categories",
           "tableTo": "categories",
-          "columnsFrom": [
-            "parentCategoryId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parentCategoryId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "restrict"
         }
@@ -218,16 +214,12 @@
       "indexes": {
         "events_start_idx": {
           "name": "events_start_idx",
-          "columns": [
-            "start"
-          ],
+          "columns": ["start"],
           "isUnique": false
         },
         "events_end_idx": {
           "name": "events_end_idx",
-          "columns": [
-            "end"
-          ],
+          "columns": ["end"],
           "isUnique": false
         }
       },
@@ -236,12 +228,8 @@
           "name": "events_calendarId_calendars_id_fk",
           "tableFrom": "events",
           "tableTo": "calendars",
-          "columnsFrom": [
-            "calendarId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["calendarId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "restrict"
         }

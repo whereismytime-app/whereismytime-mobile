@@ -6,7 +6,7 @@ import {
 } from '@/services/CategoryService';
 import { type CategoryRule } from '@/types/category_rule';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useDrizzle } from '../db/SQLiteProvider';
@@ -99,10 +99,15 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
   category,
   parentCategory,
 }) => {
+  const { drizzle: drizzleDB } = useDrizzle();
+  const categoryServiceRef = useRef<CategoryService>(new CategoryService(drizzleDB));
+
   const [name, setName] = useState('');
   const [color, setColor] = useState('#3B82F6');
   const [priority, setPriority] = useState('0');
   const [rules, setRules] = useState<CategoryRule[]>([]);
+  const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
+  const [allCategories, setAllCategories] = useState<CategoryWithChildren[]>([]);
 
   const colors = [
     '#3B82F6',
@@ -121,13 +126,30 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
       setColor(category.color);
       setPriority((category.priority ?? 0).toString());
       setRules(category.rules || []);
+      setSelectedParentId(category.parentCategoryId || null);
     } else {
       setName('');
       setColor('#3B82F6');
       setPriority('0');
       setRules([]);
+      setSelectedParentId(parentCategory?.id || null);
     }
-  }, [category]);
+  }, [category, parentCategory]);
+
+  // Load all categories for parent selection when editing
+  useEffect(() => {
+    if (visible && category) {
+      const loadCategories = async () => {
+        try {
+          const categoriesTree = await categoryServiceRef.current!.getCategoriesTree();
+          setAllCategories(categoriesTree);
+        } catch (error) {
+          console.error('Failed to load categories for parent selection:', error);
+        }
+      };
+      loadCategories();
+    }
+  }, [visible, category]);
 
   const addRule = () => {
     const newRule: CategoryRule = {
@@ -148,6 +170,81 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
     setRules(newRules);
   };
 
+  // Helper function to flatten categories tree for picker display
+  const flattenCategories = (
+    cats: CategoryWithChildren[],
+    level: number = 0,
+    currentCategoryId?: string
+  ): { id: string; name: string; level: number }[] => {
+    const result: { id: string; name: string; level: number }[] = [];
+
+    for (const cat of cats) {
+      // Don't include the current category being edited or its descendants
+      if (
+        currentCategoryId &&
+        (cat.id === currentCategoryId || isDescendantOf(cat.id, currentCategoryId, allCategories))
+      ) {
+        continue;
+      }
+
+      result.push({
+        id: cat.id,
+        name: cat.name,
+        level,
+      });
+
+      if (cat.children.length > 0) {
+        result.push(...flattenCategories(cat.children, level + 1, currentCategoryId));
+      }
+    }
+
+    return result;
+  };
+
+  // Helper function to check if a category is a descendant of another
+  const isDescendantOf = (
+    categoryId: string,
+    potentialAncestorId: string,
+    categories: CategoryWithChildren[]
+  ): boolean => {
+    for (const cat of categories) {
+      if (cat.id === categoryId) {
+        let current = cat;
+        while (current.parentCategoryId) {
+          if (current.parentCategoryId === potentialAncestorId) {
+            return true;
+          }
+          // Find parent category
+          const parent = findCategoryInTree(current.parentCategoryId, categories);
+          if (!parent) break;
+          current = parent;
+        }
+      } else if (cat.children.length > 0) {
+        if (isDescendantOf(categoryId, potentialAncestorId, cat.children)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  // Helper function to find a category in the tree
+  const findCategoryInTree = (
+    categoryId: string,
+    categories: CategoryWithChildren[]
+  ): CategoryWithChildren | null => {
+    for (const cat of categories) {
+      if (cat.id === categoryId) {
+        return cat;
+      }
+      if (cat.children.length > 0) {
+        const found = findCategoryInTree(categoryId, cat.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
   const handleSave = () => {
     if (!name.trim()) {
       Alert.alert('Error', 'Category name is required');
@@ -159,7 +256,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
       color,
       priority: parseInt(priority) || 0,
       rules: rules.length > 0 ? rules : undefined,
-      ...(parentCategory && { parentCategoryId: parentCategory.id }),
+      parentCategoryId: selectedParentId || undefined,
     };
 
     if (category) {
@@ -186,10 +283,31 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
         </View>
 
         <ScrollView className="flex-1 p-4">
-          {parentCategory && (
+          {parentCategory && !category && (
             <View className="mb-4 rounded-lg bg-gray-50 p-3">
               <Text className="mb-1 text-sm text-gray-600">Parent Category</Text>
               <Text className="text-lg font-medium">{parentCategory.name}</Text>
+            </View>
+          )}
+
+          {category && (
+            <View className="mb-4">
+              <Text className="mb-2 text-lg font-medium">Parent Category</Text>
+              <View className="rounded-lg border border-gray-300">
+                <Picker
+                  selectedValue={selectedParentId || ''}
+                  onValueChange={(value) => setSelectedParentId(value || null)}
+                  style={{ height: 50 }}>
+                  <Picker.Item label="No Parent (Root Category)" value="" />
+                  {flattenCategories(allCategories, 0, category.id).map((cat) => (
+                    <Picker.Item
+                      key={cat.id}
+                      label={'  '.repeat(cat.level) + cat.name}
+                      value={cat.id}
+                    />
+                  ))}
+                </Picker>
+              </View>
             </View>
           )}
 
@@ -355,17 +473,6 @@ export const CategoriesManagement: React.FC = () => {
       setLoading(true);
       const categoriesTree = await categoryService.getCategoriesTree();
       setCategories(categoriesTree);
-
-      // Auto-expand all categories initially
-      const allIds = new Set<string>();
-      const collectIds = (cats: CategoryWithChildren[]) => {
-        cats.forEach((cat) => {
-          allIds.add(cat.id);
-          collectIds(cat.children);
-        });
-      };
-      collectIds(categoriesTree);
-      setExpandedCategories(allIds);
     } catch (error) {
       Alert.alert('Error', 'Failed to load categories');
       console.error(error);

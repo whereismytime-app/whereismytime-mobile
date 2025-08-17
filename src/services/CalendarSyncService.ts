@@ -311,7 +311,7 @@ export class CalendarSyncService {
 
     try {
       const stats = await this.categorizationService.categorizeEvents();
-      
+
       this.updateProgress({
         status: 'idle',
         percentage: 100,
