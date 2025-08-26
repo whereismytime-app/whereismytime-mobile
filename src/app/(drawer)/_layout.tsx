@@ -28,6 +28,16 @@ const DrawerLayout = () => {
         }}
       />
       <Drawer.Screen
+        name="calendars"
+        options={{
+          headerTitle: 'Calendars',
+          drawerLabel: 'Calendars',
+          drawerIcon: ({ size, color }) => (
+            <MaterialIcons name="calendar-today" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
         name="(tabs)"
         options={{
           headerTitle: 'Tabs',

@@ -12,6 +12,7 @@ const timestamps = {
 
 export const calendars = table('calendars', {
   id: text().primaryKey(),
+  enabled: integer({ mode: 'boolean' }),
   title: text().notNull(),
   timeZone: text().notNull(),
   syncToken: text(),

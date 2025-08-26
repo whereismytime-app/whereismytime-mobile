@@ -91,11 +91,12 @@ export class CalendarSyncService {
             percentage: 10 + (i / googleCalendars.length) * 20,
           });
 
-          // Upsert calendar
+          // Upsert calendar (preserve enabled status for existing calendars)
           await this.drizzle
             .insert(calendars)
             .values({
               id: calendar.id,
+              enabled: true, // Default to enabled for new calendars
               title: calendar.summary,
               timeZone: calendar.timeZone || 'UTC',
               syncToken: null, // Will be updated after events sync
@@ -106,18 +107,28 @@ export class CalendarSyncService {
               set: {
                 title: calendar.summary,
                 timeZone: calendar.timeZone || 'UTC',
+                // Note: enabled status is preserved (not updated)
               },
             });
 
           calendarsSynced++;
 
-          // Sync events for this calendar
-          const eventsSynced = await this.syncCalendarEvents(
-            calendar.id,
-            i,
-            googleCalendars.length
-          );
-          totalEventsSynced += eventsSynced;
+          // Check if calendar is enabled before syncing events
+          const [calendarRecord] = await this.drizzle
+            .select({ enabled: calendars.enabled })
+            .from(calendars)
+            .where(eq(calendars.id, calendar.id))
+            .limit(1);
+
+          // Only sync events for enabled calendars
+          if (calendarRecord?.enabled) {
+            const eventsSynced = await this.syncCalendarEvents(
+              calendar.id,
+              i,
+              googleCalendars.length
+            );
+            totalEventsSynced += eventsSynced;
+          }
         } catch (error) {
           const errorMsg = `Failed to sync calendar ${calendar.summary}: ${error}`;
           console.error(errorMsg);

@@ -15,6 +15,13 @@
       "when": 1755409360611,
       "tag": "0001_flat_darwin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1756217550350,
+      "tag": "0002_funny_omega_sentinel",
+      "breakpoints": true
     }
   ]
 }
