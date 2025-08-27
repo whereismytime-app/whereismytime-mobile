@@ -53,7 +53,7 @@ export class CategoryReportService {
    */
   async generateFullReport(timeRange: TimeRange): Promise<ReportSummary> {
     // Get all events in the time range with category and calendar info
-    const eventsWithDetails = await this.getEventsWithDetails(timeRange);
+    const eventsWithDetails = await this.getEventsWithDetails({ timeRange });
 
     // Build category tree
     const categoryTree = await this.categoryService.getCategoriesTree();
@@ -79,7 +79,7 @@ export class CategoryReportService {
     if (!category) return null;
 
     // Get events for this category
-    const eventsWithDetails = await this.getEventsWithDetails(timeRange);
+    const eventsWithDetails = await this.getEventsWithDetails({ timeRange });
 
     if (includeDescendants) {
       // Get the category with all its descendants
@@ -214,8 +214,14 @@ export class CategoryReportService {
   /**
    * Helper: Get all events in time range with category and calendar details
    */
-  private async getEventsWithDetails(timeRange: TimeRange): Promise<EventWithCategory[]> {
-    const results = await this.db
+  async getEventsWithDetails({
+    timeRange,
+    categoryId,
+  }: {
+    timeRange: TimeRange;
+    categoryId?: string;
+  }): Promise<EventWithCategory[]> {
+    let query = this.db
       .select({
         // Event fields
         id: events.id,
@@ -240,8 +246,14 @@ export class CategoryReportService {
       })
       .from(events)
       .leftJoin(categories, eq(events.categoryId, categories.id))
-      .leftJoin(calendars, eq(events.calendarId, calendars.id))
-      .where(and(gte(events.start, timeRange.start), lte(events.end, timeRange.end)));
+      .leftJoin(calendars, eq(events.calendarId, calendars.id));
+
+    const conditions = [gte(events.start, timeRange.start), lte(events.end, timeRange.end)];
+    if (categoryId) {
+      conditions.push(eq(events.categoryId, categoryId));
+    }
+
+    const results = await query.where(and(...conditions));
 
     return results.map((row) => ({
       id: row.id,

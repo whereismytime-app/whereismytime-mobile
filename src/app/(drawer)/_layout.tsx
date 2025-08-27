@@ -2,11 +2,12 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
 
-import { HeaderButton } from '../../components/HeaderButton';
+import { HeaderButton } from '@/components/HeaderButton';
+import StatsDrawerHeader from '@/components/stats/StatsDrawerHeader';
 
 const DrawerLayout = () => {
   return (
-    <Drawer>
+    <Drawer backBehavior="history" initialRouteName="index">
       <Drawer.Screen
         name="index"
         options={{
@@ -25,6 +26,18 @@ const DrawerLayout = () => {
           drawerIcon: ({ size, color }) => (
             <Ionicons name="folder-outline" size={size} color={color} />
           ),
+        }}
+      />
+      <Drawer.Screen
+        name="stats"
+        options={{
+          headerTitle: 'Statistics',
+          drawerHideStatusBarOnOpen: true,
+          drawerLabel: 'Statistics',
+          drawerIcon: ({ size, color }) => (
+            <Ionicons name="stats-chart-outline" size={size} color={color} />
+          ),
+          header: (props) => <StatsDrawerHeader {...props} />,
         }}
       />
       <Drawer.Screen
