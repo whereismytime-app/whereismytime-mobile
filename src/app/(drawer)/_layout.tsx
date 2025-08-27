@@ -38,6 +38,16 @@ const DrawerLayout = () => {
         }}
       />
       <Drawer.Screen
+        name="events"
+        options={{
+          headerTitle: 'Events',
+          drawerLabel: 'Events',
+          drawerIcon: ({ size, color }) => (
+            <Ionicons name="list-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
         name="(tabs)"
         options={{
           headerTitle: 'Tabs',
