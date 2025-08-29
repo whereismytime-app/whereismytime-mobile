@@ -44,7 +44,7 @@ export default {
       [
         '@react-native-google-signin/google-signin',
         {
-          iosUrlScheme: 'com.googleusercontent.apps._some_id_to_be_replaced_',
+          iosUrlScheme: 'com.googleusercontent.apps.771523609080',
         },
       ],
       'expo-sqlite',
