@@ -2,9 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { DrawerHeaderProps } from '@react-navigation/drawer';
 import { router, useGlobalSearchParams } from 'expo-router';
 import { Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const StatsDrawerHeader = (props: DrawerHeaderProps) => {
   const params = useGlobalSearchParams();
+  const insets = useSafeAreaInsets();
 
   const handleNav = () => {
     if (params.categoryId) {
@@ -20,7 +22,9 @@ const StatsDrawerHeader = (props: DrawerHeaderProps) => {
   const subTitle = params.categoryId ? (hasChildCategories ? 'Subcategories' : 'Events') : null;
 
   return (
-    <View className="flex-row items-center border-b border-gray-200 bg-white px-4 py-3">
+    <View 
+    style={{ paddingTop: insets.top }}
+    className="flex-row items-center border-b border-gray-200 bg-white px-4 py-3">
       <TouchableOpacity
         onPress={handleNav}
         className="-ml-2 mr-3 p-2"
