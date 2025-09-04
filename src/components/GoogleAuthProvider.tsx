@@ -24,6 +24,7 @@ const GOOGLE_AUTH_SCOPES = [
 GoogleSignin.configure({
   scopes: GOOGLE_AUTH_SCOPES,
   webClientId: '771523609080-rduodmmac6t39q40uk84fsdvdv30ciav.apps.googleusercontent.com',
+  offlineAccess: true,
 });
 
 interface GoogleAuthContextType {
@@ -47,7 +48,10 @@ export function GoogleAuthProvider({ children }: GoogleAuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
 
   const handleAuthStateChanged = useCallback(
-    (user: User | null) => {
+    async (user: User | null) => {
+      if (GoogleSignin.hasPreviousSignIn()) {
+        await GoogleSignin.signInSilently();
+      }
       setUser(user);
       if (isLoading) setIsLoading(false);
     },
