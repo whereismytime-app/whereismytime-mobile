@@ -7,7 +7,7 @@ import {
 import { type CategoryRule } from '@/types/category_rule';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View, ActionSheetIOS, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useDrizzle } from '../db/SQLiteProvider';
 
@@ -31,6 +31,7 @@ const RuleItem: React.FC<RuleItemProps> = ({ rule, index, onUpdate, onRemove }) 
     { label: 'Contains', value: 'CONTAINS' },
     { label: 'Starts with', value: 'STARTS_WITH' },
     { label: 'Ends with', value: 'ENDS_WITH' },
+    { label: 'Equals', value: 'EQUALS' },
     { label: 'Regex pattern', value: 'REGEX' },
   ] as const;
 
@@ -41,6 +42,24 @@ const RuleItem: React.FC<RuleItemProps> = ({ rule, index, onUpdate, onRemove }) 
   const updateRuleContent = (content: string) => {
     onUpdate(index, { ...rule, content });
   };
+
+  const showRuleTypeActionSheet = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', ...ruleTypes.map(type => type.label)],
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex > 0) {
+            updateRuleType(ruleTypes[buttonIndex - 1].value);
+          }
+        }
+      );
+    }
+  };
+
+  const selectedRuleTypeLabel = ruleTypes.find(type => type.value === rule.type)?.label || 'Select type';
 
   return (
     <View className="mb-3 rounded-lg border border-gray-300 p-3">
@@ -53,13 +72,23 @@ const RuleItem: React.FC<RuleItemProps> = ({ rule, index, onUpdate, onRemove }) 
 
       <View className="mb-3">
         <Text className="mb-2 text-sm font-medium text-gray-700">Match Type</Text>
-        <View className="rounded-lg border border-gray-300">
-          <Picker selectedValue={rule.type} onValueChange={updateRuleType} style={{ height: 50 }}>
-            {ruleTypes.map((type) => (
-              <Picker.Item key={type.value} label={type.label} value={type.value} />
-            ))}
-          </Picker>
-        </View>
+        {Platform.OS === 'ios' ? (
+          <TouchableOpacity
+            onPress={showRuleTypeActionSheet}
+            className="rounded-lg border border-gray-300 px-3 py-3 flex-row items-center justify-between"
+          >
+            <Text className="text-base">{selectedRuleTypeLabel}</Text>
+            <Ionicons name="chevron-down" size={20} color="#666" />
+          </TouchableOpacity>
+        ) : (
+          <View className="rounded-lg border border-gray-300">
+            <Picker selectedValue={rule.type} onValueChange={updateRuleType} style={{ height: 50 }}>
+              {ruleTypes.map((type) => (
+                <Picker.Item key={type.value} label={type.label} value={type.value} />
+              ))}
+            </Picker>
+          </View>
+        )}
       </View>
 
       <View>
@@ -76,8 +105,10 @@ const RuleItem: React.FC<RuleItemProps> = ({ rule, index, onUpdate, onRemove }) 
               : rule.type === 'STARTS_WITH'
                 ? 'e.g., Work:'
                 : rule.type === 'ENDS_WITH'
-                  ? 'e.g., - Personal'
-                  : 'e.g., ^(Meeting|Call).*'
+                  ? 'e.g., | Personal'
+                  : rule.type === 'EQUALS'
+                    ? 'e.g., Gym'
+                    : 'e.g., ^(Meeting|Call).*$'
           }
           multiline={rule.type === 'REGEX'}
         />
@@ -119,6 +150,34 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
     '#06B6D4',
     '#84CC16',
   ];
+
+  const showParentCategoryActionSheet = () => {
+    if (Platform.OS === 'ios') {
+      const flatCategories = flattenCategories(allCategories, 0, category?.id);
+      const options = ['Cancel', 'No Parent (Root Category)', ...flatCategories.map(cat => '  '.repeat(cat.level) + cat.name)];
+      
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            setSelectedParentId(null);
+          } else if (buttonIndex > 1) {
+            setSelectedParentId(flatCategories[buttonIndex - 2].id);
+          }
+        }
+      );
+    }
+  };
+
+  const getSelectedParentCategoryLabel = () => {
+    if (!selectedParentId) return 'No Parent (Root Category)';
+    const flatCategories = flattenCategories(allCategories, 0, category?.id);
+    const selectedCategory = flatCategories.find(cat => cat.id === selectedParentId);
+    return selectedCategory ? '  '.repeat(selectedCategory.level) + selectedCategory.name : 'No Parent (Root Category)';
+  };
 
   useEffect(() => {
     if (category) {
@@ -268,7 +327,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="formSheet">
       <View className="flex-1 bg-white">
         <View className="flex-row items-center justify-between border-b border-gray-200 p-4">
           <TouchableOpacity onPress={onClose}>
@@ -293,21 +352,31 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
           {category && (
             <View className="mb-4">
               <Text className="mb-2 text-lg font-medium">Parent Category</Text>
-              <View className="rounded-lg border border-gray-300">
-                <Picker
-                  selectedValue={selectedParentId || ''}
-                  onValueChange={(value) => setSelectedParentId(value || null)}
-                  style={{ height: 50 }}>
-                  <Picker.Item label="No Parent (Root Category)" value="" />
-                  {flattenCategories(allCategories, 0, category.id).map((cat) => (
-                    <Picker.Item
-                      key={cat.id}
-                      label={'  '.repeat(cat.level) + cat.name}
-                      value={cat.id}
-                    />
-                  ))}
-                </Picker>
-              </View>
+              {Platform.OS === 'ios' ? (
+                <TouchableOpacity
+                  onPress={showParentCategoryActionSheet}
+                  className="rounded-lg border border-gray-300 px-3 py-3 flex-row items-center justify-between"
+                >
+                  <Text className="text-base flex-1" numberOfLines={1}>{getSelectedParentCategoryLabel()}</Text>
+                  <Ionicons name="chevron-down" size={20} color="#666" />
+                </TouchableOpacity>
+              ) : (
+                <View className="rounded-lg border border-gray-300">
+                  <Picker
+                    selectedValue={selectedParentId || ''}
+                    onValueChange={(value) => setSelectedParentId(value || null)}
+                    style={{ height: 50 }}>
+                    <Picker.Item label="No Parent (Root Category)" value="" />
+                    {flattenCategories(allCategories, 0, category.id).map((cat) => (
+                      <Picker.Item
+                        key={cat.id}
+                        label={'  '.repeat(cat.level) + cat.name}
+                        value={cat.id}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              )}
             </View>
           )}
 

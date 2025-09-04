@@ -225,6 +225,9 @@ export class EventCategorizationService {
     const content = rule.content.toLowerCase();
 
     switch (rule.type) {
+      case 'EQUALS':
+        return title === content;
+
       case 'STARTS_WITH':
         return title.startsWith(content);
 
