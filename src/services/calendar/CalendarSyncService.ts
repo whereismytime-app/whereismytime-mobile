@@ -1,7 +1,7 @@
 import { DrizzleDB } from '@/db/SQLiteProvider';
 import { calendars, events } from '@/db/schema';
 import { GoogleCalendarClient } from '@/integrations/google_calendar';
-import { EventCategorizationService } from './EventCategorizationService';
+import { EventCategorizationService } from '../events/EventCategorizationService';
 import { eq } from 'drizzle-orm';
 
 export interface SyncProgress {

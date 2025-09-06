@@ -2,7 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import type { DrizzleDB } from '@/db/SQLiteProvider';
 import { categories, events } from '@/db/schema';
-import { CategoryService, type CreateCategoryInput } from './CategoryService';
+import { CategoryService, type CreateCategoryInput } from '../CategoryService';
 import type { CategoryExportData, ExportedCategory } from './CategoryExportService';
 import { z } from 'zod';
 import { CategoryRuleSchema } from '@/types/category_rule';

@@ -1,6 +1,6 @@
 import type { DrizzleDB } from '@/db/SQLiteProvider';
 import { events, categories, calendars, type DBEvent, type Category } from '@/db/schema';
-import { CategoryService, type CategoryWithChildren } from './CategoryService';
+import { CategoryService, type CategoryWithChildren } from '../category/CategoryService';
 import { eq, and, gte, lte, isNull } from 'drizzle-orm';
 
 export interface TimeRange {

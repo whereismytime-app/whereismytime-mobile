@@ -12,7 +12,7 @@ import {
   type CategoryReport,
   type EventWithCategory,
   type TimeRange,
-} from '@/services/CategoryReportService';
+} from '@/services/reporting/CategoryReportService';
 
 export default function StatsScreen() {
   const { drizzle: drizzleDB } = useDrizzle();

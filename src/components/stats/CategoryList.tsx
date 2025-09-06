@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CategoryReportService, type CategoryReport } from '@/services/CategoryReportService';
+import { CategoryReportService, type CategoryReport } from '@/services/reporting/CategoryReportService';
 
 interface CategoryListProps {
   categoryReports: CategoryReport[];

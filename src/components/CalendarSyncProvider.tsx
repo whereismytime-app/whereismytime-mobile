@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { GoogleCalendarClient } from '@/integrations/google_calendar';
-import { CalendarSyncService, SyncProgress, LastSyncInfo } from '@/services/CalendarSyncService';
+import { CalendarSyncService, SyncProgress, LastSyncInfo } from '@/services/calendar/CalendarSyncService';
 import { useDrizzle } from '@/db/SQLiteProvider';
 import { useGoogleAuth } from './GoogleAuthProvider';
 

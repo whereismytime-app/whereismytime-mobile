@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Dimensions } from 'react-native';
 import { PieChart } from 'react-native-chart-kit';
-import { CategoryReportService, type CategoryReport } from '@/services/CategoryReportService';
+import { CategoryReportService, type CategoryReport } from '@/services/reporting/CategoryReportService';
 
 interface CategoryPieChartProps {
   categoryReports: CategoryReport[];

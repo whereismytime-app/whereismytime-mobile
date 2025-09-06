@@ -4,7 +4,7 @@ import { useDrizzle } from '@/db/SQLiteProvider';
 import {
   CategorizationStats,
   EventCategorizationService,
-} from '@/services/EventCategorizationService';
+} from '@/services/events/EventCategorizationService';
 
 const ReApplyCategories = () => {
   const [isLoading, setIsLoading] = useState(false);

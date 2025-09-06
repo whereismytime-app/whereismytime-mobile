@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, SectionList, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { EventTile } from '@/components/EventTile';
 import {
@@ -6,7 +6,7 @@ import {
   type EventWithCategory,
   type ScrollDirection,
   type EventCursor,
-} from '@/services/EventsService';
+} from '@/services/events/EventsService';
 import { useDrizzle } from '@/db/SQLiteProvider';
 
 interface DateSection {

@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { EventWithCategory } from '@/services/EventsService';
+import type { EventWithCategory } from '@/services/events/EventsService';
 
 interface EventTileProps {
   event: EventWithCategory;

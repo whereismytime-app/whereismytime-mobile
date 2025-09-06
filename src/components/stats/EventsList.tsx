@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CategoryReportService, type EventWithCategory } from '@/services/CategoryReportService';
+import { CategoryReportService, type EventWithCategory } from '@/services/reporting/CategoryReportService';
 
 interface EventsListProps {
   events: EventWithCategory[];

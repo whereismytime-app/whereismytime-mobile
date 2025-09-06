@@ -3,9 +3,9 @@ import {
   type CategoryWithChildren,
   type CreateCategoryInput,
   type UpdateCategoryInput,
-} from '@/services/CategoryService';
-import { CategoryExportService } from '@/services/CategoryExportService';
-import { CategoryImportService } from '@/services/CategoryImportService';
+} from '@/services/category/CategoryService';
+import { CategoryExportService } from '@/services/category/import-export/CategoryExportService';
+import { CategoryImportService } from '@/services/category/import-export/CategoryImportService';
 import { type CategoryRule } from '@/types/category_rule';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';

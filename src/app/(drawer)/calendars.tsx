@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Alert } from 'react-native';
 import { Checkbox } from 'expo-checkbox';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useDrizzle } from '@/db/SQLiteProvider';
-import { CalendarManagementService } from '@/services/CalendarManagementService';
+import { CalendarManagementService } from '@/services/calendar/CalendarManagementService';
 import { useCalendarSync } from '@/components/CalendarSyncProvider';
 import { type DBCalendar } from '@/db/schema';
 

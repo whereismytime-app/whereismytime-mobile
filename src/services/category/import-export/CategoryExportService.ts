@@ -1,7 +1,7 @@
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import type { DrizzleDB } from '@/db/SQLiteProvider';
-import { CategoryService, type CategoryWithChildren } from './CategoryService';
+import { CategoryService, type CategoryWithChildren } from '../CategoryService';
 import type { CategoryRule } from '@/types/category_rule';
 
 export interface ExportedCategory {
