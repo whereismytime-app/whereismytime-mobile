@@ -77,6 +77,10 @@ export default {
       },
       package: 'com.fahimalizain.whereismytime',
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
+      blockedPermissions: [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     extra: {
       router: {},

@@ -4,6 +4,8 @@ import {
   type CreateCategoryInput,
   type UpdateCategoryInput,
 } from '@/services/CategoryService';
+import { CategoryExportService } from '@/services/CategoryExportService';
+import { CategoryImportService } from '@/services/CategoryImportService';
 import { type CategoryRule } from '@/types/category_rule';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -530,6 +532,8 @@ const CategoryItem: React.FC<CategoryItemProps> = ({
 export const CategoriesManagement: React.FC = () => {
   const { drizzle: drizzleDB } = useDrizzle();
   const [categoryService] = useState(() => new CategoryService(drizzleDB));
+  const [categoryExportService] = useState(() => new CategoryExportService(drizzleDB));
+  const [categoryImportService] = useState(() => new CategoryImportService(drizzleDB));
   const [categories, setCategories] = useState<CategoryWithChildren[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -610,6 +614,63 @@ export const CategoriesManagement: React.FC = () => {
     setShowForm(true);
   };
 
+  const handleExport = async () => {
+    try {
+      setLoading(true);
+      await categoryExportService.exportCategories();
+      Alert.alert('Success', 'Categories exported successfully!');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      Alert.alert('Export Error', errorMessage);
+      console.error('Export error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImport = async () => {
+    Alert.alert(
+      'Import Categories',
+      'This will replace all existing categories and remove category assignments from events. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Import',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const result = await categoryImportService.importCategories();
+              
+              if (result.success) {
+                await loadCategories(); // Refresh the categories list
+                Alert.alert(
+                  'Import Successful',
+                  `Imported ${result.importedCount} categories.${
+                    result.skippedCount > 0 ? ` ${result.skippedCount} categories were skipped.` : ''
+                  }${
+                    result.errors.length > 0 ? `\n\nWarnings:\n${result.errors.join('\n')}` : ''
+                  }`
+                );
+              } else {
+                Alert.alert(
+                  'Import Failed',
+                  result.errors.length > 0 ? result.errors.join('\n') : 'Unknown error occurred'
+                );
+              }
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+              Alert.alert('Import Error', errorMessage);
+              console.error('Import error:', error);
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const toggleExpand = (categoryId: string) => {
     const newExpanded = new Set(expandedCategories);
     if (newExpanded.has(categoryId)) {
@@ -644,7 +705,20 @@ export const CategoriesManagement: React.FC = () => {
   return (
     <View className="flex-1">
       <View className="flex-row items-center justify-between border-b border-gray-200 p-4">
-        <Text className="text-2xl font-bold">Categories</Text>
+        {/** Import Button */}
+        <TouchableOpacity
+          onPress={handleImport}
+          className="flex-row items-center rounded-lg bg-gray-600 px-4 py-2">
+          <Ionicons name="cloud-upload" size={20} color="white" />
+          <Text className="ml-1 font-semibold text-white">Import</Text>
+        </TouchableOpacity>
+        {/** Export */}
+        <TouchableOpacity
+          onPress={handleExport}
+          className="flex-row items-center rounded-lg bg-gray-600 px-4 py-2">
+          <Ionicons name="cloud-download" size={20} color="white" />
+          <Text className="ml-1 font-semibold text-white">Export</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={handleAddRoot}
           className="flex-row items-center rounded-lg bg-blue-500 px-4 py-2">

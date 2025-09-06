@@ -221,28 +221,28 @@ export class EventCategorizationService {
    * Check if an event matches a specific rule
    */
   private async eventMatchesRule(event: DBEvent, rule: CategoryRule): Promise<boolean> {
-    const title = (event.title || '').toLowerCase();
-    const content = rule.content.toLowerCase();
+    const title = (event.title || '');
+    const rule_content = rule.content;
 
     switch (rule.type) {
       case 'EQUALS':
-        return title === content;
+        return title === rule_content;
 
       case 'STARTS_WITH':
-        return title.startsWith(content);
+        return title.startsWith(rule_content);
 
       case 'ENDS_WITH':
-        return title.endsWith(content);
+        return title.endsWith(rule_content);
 
       case 'CONTAINS':
-        return title.includes(content);
+        return title.includes(rule_content);
 
       case 'REGEX':
         try {
-          const regex = new RegExp(rule.content, 'i');
+          const regex = new RegExp(rule_content, 'i');
           return regex.test(event.title || '');
         } catch (error) {
-          console.warn(`Invalid regex in category rule: ${rule.content}`, error);
+          console.warn(`Invalid regex in category rule: ${rule_content}`, error);
           return false;
         }
 
