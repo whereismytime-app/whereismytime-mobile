@@ -2,8 +2,9 @@ import { DrizzleDB } from '@/db/SQLiteProvider';
 import { calendars, type DBCalendar } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
-export class CalendarManagementService {
+export class CalendarService {
   private drizzle: DrizzleDB;
+  private primaryTimezone: string | null = null;
 
   constructor(drizzle: DrizzleDB) {
     this.drizzle = drizzle;
@@ -13,10 +14,7 @@ export class CalendarManagementService {
    * Get all calendars with their enabled status
    */
   async getCalendars(): Promise<DBCalendar[]> {
-    return await this.drizzle
-      .select()
-      .from(calendars)
-      .orderBy(calendars.title);
+    return await this.drizzle.select().from(calendars).orderBy(calendars.title);
   }
 
   /**
@@ -79,5 +77,37 @@ export class CalendarManagementService {
     for (const calendarId of calendarIds) {
       await this.updateCalendarEnabled(calendarId, false);
     }
+  }
+
+  async getPrimaryTimezone(): Promise<string> {
+    if (this.primaryTimezone) {
+      return this.primaryTimezone;
+    }
+
+    const calendars = await this.getCalendars();
+    const timeZoneCount = calendars.reduce(
+      (acc, calendar) => {
+        if (!calendar.timeZone) {
+          return acc;
+        }
+
+        acc[calendar.timeZone] = (acc[calendar.timeZone] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+
+    if (Object.keys(timeZoneCount).length === 0) {
+      return 'UTC';
+    }
+
+    this.primaryTimezone = Object.keys(timeZoneCount)[0];
+    for (const [tz, count] of Object.entries(timeZoneCount)) {
+      if (count > (timeZoneCount[this.primaryTimezone] || 0)) {
+        this.primaryTimezone = tz;
+      }
+    }
+
+    return this.primaryTimezone;
   }
 }

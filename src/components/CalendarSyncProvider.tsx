@@ -7,8 +7,10 @@ import {
 } from '@/services/calendar/CalendarSyncService';
 import { useDrizzle } from '@/db/SQLiteProvider';
 import { useGoogleAuth } from './GoogleAuthProvider';
+import { CalendarService } from '../services/calendar/CalendarService';
 
 interface CalendarSyncContextType {
+  primaryTimezone: string;
   syncService: CalendarSyncService | null;
   progress: SyncProgress;
   lastSyncInfo: LastSyncInfo | undefined;
@@ -37,6 +39,7 @@ export function CalendarSyncProvider({
     percentage: 0,
   });
   const [lastSyncInfo, setLastSyncInfo] = useState<LastSyncInfo | undefined>();
+  const [primaryTimezone, setPrimaryTimezone] = useState<string>('UTC');
 
   // Initialize sync service when user is authenticated and database is ready
   useEffect(() => {
@@ -57,6 +60,7 @@ export function CalendarSyncProvider({
 
         setSyncService(service);
         setIsInitialized(true);
+        new CalendarService(drizzle).getPrimaryTimezone().then(setPrimaryTimezone);
 
         // Auto-sync if enabled
         if (autoSyncOnAuth) {
@@ -97,6 +101,7 @@ export function CalendarSyncProvider({
     lastSyncInfo,
     isInitialized,
     syncAllCalendars,
+    primaryTimezone,
   };
 
   return (

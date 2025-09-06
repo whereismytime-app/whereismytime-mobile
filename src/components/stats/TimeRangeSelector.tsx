@@ -65,7 +65,7 @@ export function TimeRangeSelector({
         <Text className="text-lg font-semibold text-gray-700">Time Range</Text>
         <TouchableOpacity
           onPress={() => setShowTypeSelector(true)}
-          className="flex-row items-center space-x-2 rounded-lg bg-gray-50 px-3 py-2">
+          className="flex-row items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
           <Text className="text-sm font-medium text-gray-900">{getCurrentTypeLabel()}</Text>
           <Ionicons name="chevron-down" size={16} color="#6B7280" />
         </TouchableOpacity>
@@ -99,7 +99,7 @@ export function TimeRangeSelector({
             {displayText}
           </Text> */}
 
-          <View className="flex-row space-x-4">
+          <View className="flex-row gap-4">
             <View className="flex-1">
               <Text className="mb-2 text-sm font-medium text-gray-700">From</Text>
               <TouchableOpacity

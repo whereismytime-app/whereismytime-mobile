@@ -1,12 +1,18 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Text, View } from 'react-native';
 
 import { CategoryList } from '@/components/stats/CategoryList';
 import { CategoryPieChart } from '@/components/stats/CategoryPieChart';
 import { EventsList } from '@/components/stats/EventsList';
+import {
+  StatsPageParams,
+  StatsPageParamsInputType,
+  StatsPageParamsType,
+} from '@/components/stats/StatsDrawerHeader';
 import { TimeRangeSelector } from '@/components/stats/TimeRangeSelector';
 import { useDrizzle } from '@/db/SQLiteProvider';
+import { useLocalZodSearchParams } from '@/hooks/useLocalZodSearchParams';
 import {
   CategoryReportService,
   type CategoryReport,
@@ -18,25 +24,20 @@ export default function StatsScreen() {
   const { drizzle: drizzleDB } = useDrizzle();
   const [reportService] = useState(() => new CategoryReportService(drizzleDB));
 
-  const params = useLocalSearchParams<{ categoryId?: string; categoryName?: string }>();
-  const [timeRangeType, setTimeRangeType] = useState<'weekly' | 'monthly' | 'annually' | 'period'>(
-    'monthly'
-  );
-  const [referenceDate, setReferenceDate] = useState(new Date());
-  const [customStart, setCustomStart] = useState<Date>(new Date());
-  const [customEnd, setCustomEnd] = useState<Date>(new Date());
+  const { params } = useLocalZodSearchParams(StatsPageParams);
+  // const { primaryTimezone } = useCalendarSync();
   const [categoryReports, setCategoryReports] = useState<CategoryReport[]>([]);
   const [events, setEvents] = useState<EventWithCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hasChildCategories, setHasChildCategories] = useState(false);
 
-  const currentCategoryId = params.categoryId;
-  const currentCategoryName = params.categoryName;
-  const isShowingEvents = currentCategoryId && !hasChildCategories;
+  const currentCategoryName = params?.categoryName;
+  const isShowingEvents = events.length > 0 && categoryReports.length === 0 && params?.categoryId;
 
   // Compute current time range
   const timeRange = useMemo<TimeRange>(() => {
-    switch (timeRangeType) {
+    // TODO: Make use of Calendar Primary TimeZone. Right now, it uses Device Timezone.
+    const referenceDate = params?.dateRangeRef || new Date();
+    switch (params?.dateRangeType || 'monthly') {
       case 'weekly':
         const startOfWeek = new Date(referenceDate);
         const day = startOfWeek.getDay();
@@ -69,23 +70,28 @@ export default function StatsScreen() {
         return { start: startOfYear, end: endOfYear };
 
       case 'period':
-        return { start: new Date(customStart), end: new Date(customEnd) };
+        return {
+          start: new Date(params?.dateRangeCustomStart ?? new Date()),
+          end: new Date(params?.dateRangeCustomEnd ?? new Date()),
+        };
 
       default:
         return { start: new Date(), end: new Date() };
     }
-  }, [timeRangeType, referenceDate, customStart, customEnd]);
+  }, [params]);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
-      if (currentCategoryId) {
+      if (params?.categoryId) {
         // Get category report
-        const report = await reportService.getCategoryReport(currentCategoryId, timeRange, true);
+        const report = await reportService.getCategoryReport(
+          params.categoryId,
+          timeRange,
+          params?.isDummyParent ? false : true
+        );
         if (report) {
-          setHasChildCategories(report.children.length > 0);
-
           if (report.children.length > 0) {
             // Show child categories
             setCategoryReports(report.children);
@@ -93,7 +99,7 @@ export default function StatsScreen() {
           } else {
             // Show events for this category
             const categoryEvents = await reportService.getEventsWithDetails({
-              categoryId: currentCategoryId,
+              categoryId: params.categoryId,
               timeRange,
             });
             setEvents(categoryEvents);
@@ -105,7 +111,6 @@ export default function StatsScreen() {
         const fullReport = await reportService.generateFullReport(timeRange);
         setCategoryReports(fullReport.categoryBreakdown);
         setEvents([]);
-        setHasChildCategories(false);
       }
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -113,37 +118,76 @@ export default function StatsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [reportService, timeRange, currentCategoryId]);
+  }, [reportService, timeRange, params]);
 
-  // Load data when time range or category changes
   useEffect(() => {
-    loadData();
+    // Load data when time range or category changes
+    // On route change, there is a moment where the params are not yet updated
+    const timeout = setTimeout(loadData, 500);
+    return () => clearTimeout(timeout);
   }, [loadData]);
 
+  const updateSearchParams = (newParams: Partial<StatsPageParamsType>, inPlace = true) => {
+    const finalParams = {
+      ...params,
+      ...newParams,
+      dateRangeType: newParams.dateRangeType || params?.dateRangeType || 'monthly',
+      dateRangeRef: newParams.dateRangeRef
+        ? newParams.dateRangeRef.toISOString()
+        : params?.dateRangeRef
+          ? params.dateRangeRef.toISOString()
+          : new Date().toISOString(),
+      dateRangeCustomStart: newParams.dateRangeCustomStart
+        ? newParams.dateRangeCustomStart.toISOString()
+        : params?.dateRangeCustomStart
+          ? params.dateRangeCustomStart.toISOString()
+          : undefined,
+
+      dateRangeCustomEnd: newParams.dateRangeCustomEnd
+        ? newParams.dateRangeCustomEnd.toISOString()
+        : params?.dateRangeCustomEnd
+          ? params.dateRangeCustomEnd.toISOString()
+          : undefined,
+
+      // Category Specific
+      hasChildCategories: newParams.hasChildCategories ? '1' : '0',
+      isDummyParent: newParams.isDummyParent ? '1' : '0',
+    } satisfies StatsPageParamsInputType;
+
+    if (inPlace) {
+      router.setParams(finalParams);
+    } else {
+      router.push({
+        pathname: '/stats',
+        params: finalParams,
+      });
+    }
+  };
+
   const handleCategoryPress = (categoryReport: CategoryReport) => {
-    router.push({
-      pathname: '/stats',
-      params: {
+    updateSearchParams(
+      {
         categoryId: categoryReport.category.id,
         categoryName: categoryReport.category.name,
-        hasChildCategories: categoryReport.children.length > 0 ? '1' : '0',
+        hasChildCategories: categoryReport.children.length > 0,
+        isDummyParent: categoryReport.isDummyParent,
       },
-    });
+      false
+    );
   };
 
   const handleTimeRangeTypeChange = (type: 'weekly' | 'monthly' | 'annually' | 'period') => {
-    setTimeRangeType(type);
+    updateSearchParams({ dateRangeType: type });
   };
 
   const handleCustomDatesChange = (start: Date, end: Date) => {
-    setCustomStart(start);
-    setCustomEnd(end);
+    updateSearchParams({ dateRangeCustomStart: start, dateRangeCustomEnd: end });
   };
 
   const navigateTimeRange = (direction: 'prev' | 'next') => {
-    const newDate = new Date(referenceDate);
+    const newDate = new Date(params?.dateRangeRef ?? new Date());
 
-    switch (timeRangeType) {
+    switch (params?.dateRangeType || 'monthly') {
       case 'weekly':
         newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
         break;
@@ -155,11 +199,11 @@ export default function StatsScreen() {
         break;
     }
 
-    setReferenceDate(newDate);
+    updateSearchParams({ dateRangeRef: newDate });
   };
 
   const formatTimeRangeDisplay = (): string => {
-    switch (timeRangeType) {
+    switch (params?.dateRangeType || 'monthly') {
       case 'weekly':
         const weekStart = timeRange.start.toLocaleDateString('en-US', {
           month: 'short',
@@ -206,10 +250,10 @@ export default function StatsScreen() {
       {/* Time Range Selector */}
       <View className="border-b border-gray-100 bg-white px-4 py-4">
         <TimeRangeSelector
-          timeRangeType={timeRangeType}
+          timeRangeType={params?.dateRangeType || 'monthly'}
           displayText={formatTimeRangeDisplay()}
-          customStart={customStart}
-          customEnd={customEnd}
+          customStart={params?.dateRangeCustomStart || new Date()}
+          customEnd={params?.dateRangeCustomEnd || new Date()}
           onTypeChange={handleTimeRangeTypeChange}
           onNavigate={navigateTimeRange}
           onCustomDatesChange={handleCustomDatesChange}
@@ -237,7 +281,7 @@ export default function StatsScreen() {
             categoryReports={categoryReports}
             onCategoryPress={handleCategoryPress}
             emptyMessage={
-              currentCategoryId
+              params?.categoryId
                 ? `No subcategories found for ${currentCategoryName}.`
                 : 'No categories found. Create some categories to see your time statistics.'
             }

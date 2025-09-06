@@ -11,6 +11,10 @@ export class EventDurationService {
   }
 
   async recalculateDurations(from: Date, to: Date) {
+    console.info('Recalculating Event Durations', {
+      from: from.toISOString(),
+      to: to.toISOString(),
+    });
     ({ from, to } = this._pad_date_range(from, to));
     const events = await this._fetch_all_events(from, to);
 

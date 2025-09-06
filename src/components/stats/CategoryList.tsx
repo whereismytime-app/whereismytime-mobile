@@ -1,7 +1,10 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CategoryReportService, type CategoryReport } from '@/services/reporting/CategoryReportService';
+import {
+  CategoryReportService,
+  type CategoryReport,
+} from '@/services/reporting/CategoryReportService';
 
 interface CategoryListProps {
   categoryReports: CategoryReport[];
@@ -40,7 +43,7 @@ function CategoryListItem({ categoryReport, onPress, rank }: CategoryListItemPro
         <Text className="mb-1 text-base font-medium text-gray-900" numberOfLines={1}>
           {category.name}
         </Text>
-        <View className="flex-row items-center space-x-4">
+        <View className="flex-row items-center gap-2">
           <Text className="text-sm text-gray-600">{formatDuration}</Text>
           <Text className="text-sm text-gray-500">
             {totalEventCount} {totalEventCount === 1 ? 'event' : 'events'}
@@ -62,7 +65,11 @@ export function CategoryList({
   // Filter out categories with zero duration and sort by duration descending
   const sortedReports = categoryReports
     .filter((report) => report.totalDuration > 0)
-    .sort((a, b) => b.totalDuration - a.totalDuration);
+    .sort((a, b) => {
+      if (a.isDummyParent && !b.isDummyParent) return -1; // a comes first
+      if (!a.isDummyParent && b.isDummyParent) return 1; // b comes first
+      return b.totalDuration - a.totalDuration; // regular duration sort
+    });
 
   if (sortedReports.length === 0) {
     return (

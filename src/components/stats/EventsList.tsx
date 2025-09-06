@@ -1,7 +1,10 @@
 import React from 'react';
 import { View, Text, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CategoryReportService, type EventWithCategory } from '@/services/reporting/CategoryReportService';
+import {
+  CategoryReportService,
+  type EventWithCategory,
+} from '@/services/reporting/CategoryReportService';
 
 interface EventsListProps {
   events: EventWithCategory[];
@@ -43,7 +46,7 @@ function EventListItem({ event, index }: EventListItemProps) {
       </View>
 
       {/* Event Time */}
-      <View className="mb-2 flex-row items-center space-x-4">
+      <View className="mb-2 flex-row items-center gap-4">
         <View className="flex-row items-center">
           <Ionicons name="time-outline" size={14} color="#6B7280" />
           <Text className="ml-1 text-sm text-gray-600">
@@ -57,7 +60,7 @@ function EventListItem({ event, index }: EventListItemProps) {
       </View>
 
       {/* Event Details */}
-      <View className="flex-row items-center space-x-4">
+      <View className="flex-row items-center gap-4">
         {/* Category */}
         {event.category && (
           <View className="flex-row items-center">

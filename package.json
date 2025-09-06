@@ -15,6 +15,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@date-fns/tz": "^1.4.1",
     "@expo/vector-icons": "^14.0.0",
     "@react-native-community/datetimepicker": "8.4.1",
     "@react-native-firebase/app": "^23.0.0",
@@ -55,6 +56,7 @@
     "react-native-screens": "~4.11.1",
     "react-native-svg": "^15.12.1",
     "react-native-web": "^0.20.0",
+    "remeda": "^2.30.0",
     "zod": "^4.0.17",
     "zustand": "^4.5.1"
   },

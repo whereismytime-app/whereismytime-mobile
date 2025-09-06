@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Alert } from 'react-native';
 import { Checkbox } from 'expo-checkbox';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useDrizzle } from '@/db/SQLiteProvider';
-import { CalendarManagementService } from '@/services/calendar/CalendarManagementService';
+import { CalendarService } from '@/services/calendar/CalendarService';
 import { useCalendarSync } from '@/components/CalendarSyncProvider';
 import { type DBCalendar } from '@/db/schema';
 
@@ -12,7 +12,7 @@ export default function CalendarsScreen() {
   const { isInitialized } = useCalendarSync();
   const [calendars, setCalendars] = useState<DBCalendar[]>([]);
   const [loading, setLoading] = useState(true);
-  const [calendarService] = useState(() => new CalendarManagementService(drizzle));
+  const [calendarService] = useState(() => new CalendarService(drizzle));
 
   // Load calendars
   useEffect(() => {

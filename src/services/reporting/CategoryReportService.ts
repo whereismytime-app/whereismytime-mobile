@@ -2,6 +2,7 @@ import type { DrizzleDB } from '@/db/SQLiteProvider';
 import { events, categories, calendars, type DBEvent, type Category } from '@/db/schema';
 import { CategoryService, type CategoryWithChildren } from '../category/CategoryService';
 import { eq, and, gte, lte, isNull } from 'drizzle-orm';
+import { CalendarService } from '../calendar/CalendarService';
 
 export interface TimeRange {
   start: Date;
@@ -23,6 +24,7 @@ export interface EventWithCategory extends DBEvent {
 
 export interface CategoryReport {
   category: Category;
+  isDummyParent?: boolean;
   directDuration: number; // Duration from events directly assigned to this category
   totalDuration: number; // Direct + all descendant categories
   eventCount: number; // Direct events count
@@ -42,9 +44,12 @@ export interface ReportSummary {
 }
 
 export class CategoryReportService {
+  private calendarService: CalendarService;
   private categoryService: CategoryService;
+  private primaryTimezone: string | null = null;
 
   constructor(private db: DrizzleDB) {
+    this.calendarService = new CalendarService(db);
     this.categoryService = new CategoryService(db);
   }
 
@@ -251,6 +256,7 @@ export class CategoryReportService {
     const conditions = [
       eq(events.isAllDay, false),
       gte(events.start, timeRange.start),
+      lte(events.start, new Date()),
       lte(events.end, timeRange.end),
     ];
     if (categoryId) {
@@ -328,6 +334,20 @@ export class CategoryReportService {
     const categoryPath = (await this.categoryService.getCategoryPath(category.id)).map(
       (c) => c.name
     );
+
+    if (directDuration > 0 && childReports.length > 0) {
+      // We insert a dummy child for the direct events
+      childReports.unshift({
+        category,
+        isDummyParent: true,
+        directDuration,
+        totalDuration: directDuration,
+        eventCount: directEvents.length,
+        totalEventCount: directEvents.length,
+        children: [],
+        categoryPath,
+      });
+    }
 
     return {
       category,
