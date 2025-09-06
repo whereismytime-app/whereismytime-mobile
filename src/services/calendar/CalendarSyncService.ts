@@ -3,9 +3,15 @@ import { calendars, events } from '@/db/schema';
 import { GoogleCalendarClient } from '@/integrations/google_calendar';
 import { EventCategorizationService } from '../events/EventCategorizationService';
 import { eq } from 'drizzle-orm';
+import { EventDurationService } from '../events/EventDurationService';
 
 export interface SyncProgress {
-  status: 'idle' | 'syncing_calendars' | 'syncing_events' | 'categorizing_events';
+  status:
+    | 'idle'
+    | 'syncing_calendars'
+    | 'syncing_events'
+    | 'categorizing_events'
+    | 'crunching_numbers';
   currentCalendar?: string;
   totalCalendars?: number;
   processedCalendars?: number;
@@ -28,6 +34,7 @@ export class CalendarSyncService {
   private progressCallback?: (progress: SyncProgress) => void;
   private lastSyncInfo?: LastSyncInfo;
   private categorizationService: EventCategorizationService;
+  private eventDurationService: EventDurationService;
   private autoCategorize: boolean = true;
 
   constructor(
@@ -40,6 +47,7 @@ export class CalendarSyncService {
     this.drizzle = drizzle;
     this.progressCallback = progressCallback;
     this.categorizationService = new EventCategorizationService(drizzle);
+    this.eventDurationService = new EventDurationService(drizzle);
     this.autoCategorize = autoCategorize;
   }
 
@@ -61,6 +69,8 @@ export class CalendarSyncService {
     const errors: string[] = [];
     let calendarsSynced = 0;
     let totalEventsSynced = 0;
+    let latest = new Date(0);
+    let earliest = new Date(8640000000000000);
 
     try {
       this.updateProgress({
@@ -122,12 +132,10 @@ export class CalendarSyncService {
 
           // Only sync events for enabled calendars
           if (calendarRecord?.enabled) {
-            const eventsSynced = await this.syncCalendarEvents(
-              calendar.id,
-              i,
-              googleCalendars.length
-            );
-            totalEventsSynced += eventsSynced;
+            const syncInfo = await this.syncCalendarEvents(calendar.id, i, googleCalendars.length);
+            totalEventsSynced += syncInfo.eventsSynced;
+            earliest = earliest < syncInfo.earliest ? earliest : syncInfo.earliest;
+            latest = latest > syncInfo.latest ? latest : syncInfo.latest;
           }
         } catch (error) {
           const errorMsg = `Failed to sync calendar ${calendar.summary}: ${error}`;
@@ -141,7 +149,7 @@ export class CalendarSyncService {
       if (this.autoCategorize) {
         this.updateProgress({
           status: 'categorizing_events',
-          percentage: 95,
+          percentage: 90,
         });
 
         try {
@@ -153,6 +161,12 @@ export class CalendarSyncService {
           errors.push(errorMsg);
         }
       }
+
+      this.updateProgress({
+        status: 'crunching_numbers',
+        percentage: 95,
+      });
+      await this.eventDurationService.recalculateDurations(earliest, latest);
 
       this.updateProgress({
         status: 'idle',
@@ -192,15 +206,17 @@ export class CalendarSyncService {
     calendarIndex: number,
     totalCalendars: number,
     syncToken?: string
-  ): Promise<number> {
+  ): Promise<{ eventsSynced: number; earliest: Date; latest: Date }> {
     let eventsSynced = 0;
+    let earliest = new Date(8640000000000000);
+    let latest = new Date(0);
     let pageToken: string | undefined;
     let nextSyncToken: string | undefined;
 
     // Get current sync token from database if not provided
     if (!syncToken) {
       const existingCalendar = await this.drizzle
-        .select()
+        .select({ syncToken: calendars.syncToken })
         .from(calendars)
         .where(eq(calendars.id, calendarId))
         .limit(1);
@@ -228,13 +244,14 @@ export class CalendarSyncService {
 
       // Process events in batches
       for (const googleEvent of response.items) {
+        const startTime = this.parseEventTime(googleEvent.start);
+        const endTime = this.parseEventTime(googleEvent.end);
+
         if (googleEvent.status === 'cancelled') {
           // Delete cancelled events
           await this.drizzle.delete(events).where(eq(events.id, googleEvent.id));
         } else {
           // Calculate event duration
-          const startTime = this.parseEventTime(googleEvent.start);
-          const endTime = this.parseEventTime(googleEvent.end);
           const effectiveDuration =
             endTime && startTime
               ? Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)) // duration in minutes
@@ -269,6 +286,8 @@ export class CalendarSyncService {
         }
 
         eventsSynced++;
+        earliest = !startTime || earliest < startTime ? earliest : startTime;
+        latest = !endTime || latest > endTime ? latest : endTime;
       }
 
       pageToken = response.nextPageToken;
@@ -296,19 +315,7 @@ export class CalendarSyncService {
         .where(eq(calendars.id, calendarId));
     }
 
-    return eventsSynced;
-  }
-
-  async syncSelectedCalendars(calendarIds: string[]): Promise<void> {
-    // Implementation deferred as per requirements
-    throw new Error('syncSelectedCalendars is not yet implemented');
-  }
-
-  /**
-   * Enable or disable auto-categorization
-   */
-  setAutoCategorize(enabled: boolean) {
-    this.autoCategorize = enabled;
+    return { eventsSynced, earliest, latest };
   }
 
   /**
@@ -363,6 +370,7 @@ export class CalendarSyncService {
       return new Date(timeObj.dateTime);
     } else if (timeObj.date) {
       // All-day event
+      // TODO: Handle time zone for all-day events
       return new Date(timeObj.date + 'T00:00:00');
     }
 

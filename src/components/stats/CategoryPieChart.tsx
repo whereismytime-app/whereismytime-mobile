@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, Dimensions } from 'react-native';
 import { PieChart } from 'react-native-chart-kit';
 import { CategoryReportService, type CategoryReport } from '@/services/reporting/CategoryReportService';
@@ -85,7 +84,6 @@ export function CategoryPieChart({ categoryReports }: CategoryPieChartProps) {
                 <Text 
                   className="text-sm text-gray-900 flex-1" 
                   numberOfLines={1}
-                  title={filteredReports[index].category.name}
                 >
                   {filteredReports[index].category.name}
                 </Text>

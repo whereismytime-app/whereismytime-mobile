@@ -24,9 +24,10 @@ export interface EventsByDate {
 }
 
 export class EventsService {
-  private pageSize = 50;
-
-  constructor(private db: DrizzleDB) {}
+  constructor(
+    private db: DrizzleDB,
+    private pageSize: number = 50
+  ) {}
 
   async getEventsPaginated(
     cursor?: EventCursor,

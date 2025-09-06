@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { GoogleCalendarClient } from '@/integrations/google_calendar';
-import { CalendarSyncService, SyncProgress, LastSyncInfo } from '@/services/calendar/CalendarSyncService';
+import {
+  CalendarSyncService,
+  SyncProgress,
+  LastSyncInfo,
+} from '@/services/calendar/CalendarSyncService';
 import { useDrizzle } from '@/db/SQLiteProvider';
 import { useGoogleAuth } from './GoogleAuthProvider';
 
@@ -10,7 +14,6 @@ interface CalendarSyncContextType {
   lastSyncInfo: LastSyncInfo | undefined;
   isInitialized: boolean;
   syncAllCalendars: () => Promise<void>;
-  syncSelectedCalendars: (calendarIds: string[]) => Promise<void>;
 }
 
 const CalendarSyncContext = createContext<CalendarSyncContextType | undefined>(undefined);
@@ -88,27 +91,12 @@ export function CalendarSyncProvider({
     }
   };
 
-  const syncSelectedCalendars = async (calendarIds: string[]): Promise<void> => {
-    if (!syncService) {
-      throw new Error('Sync service not initialized');
-    }
-
-    try {
-      await syncService.syncSelectedCalendars(calendarIds);
-      setLastSyncInfo(syncService.getLastSyncInfo());
-    } catch (error) {
-      console.error('Selected calendars sync failed:', error);
-      throw error;
-    }
-  };
-
   const contextValue: CalendarSyncContextType = {
     syncService,
     progress,
     lastSyncInfo,
     isInitialized,
     syncAllCalendars,
-    syncSelectedCalendars,
   };
 
   return (

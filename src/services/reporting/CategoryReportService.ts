@@ -248,7 +248,11 @@ export class CategoryReportService {
       .leftJoin(categories, eq(events.categoryId, categories.id))
       .leftJoin(calendars, eq(events.calendarId, calendars.id));
 
-    const conditions = [gte(events.start, timeRange.start), lte(events.end, timeRange.end)];
+    const conditions = [
+      eq(events.isAllDay, false),
+      gte(events.start, timeRange.start),
+      lte(events.end, timeRange.end),
+    ];
     if (categoryId) {
       conditions.push(eq(events.categoryId, categoryId));
     }
