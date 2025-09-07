@@ -12,7 +12,7 @@ export const StatsPageParams = zod.object({
     .string()
     .transform((str) => new Date(str))
     .default(new Date()),
-  dateRangeType: zod.enum(['weekly', 'monthly', 'annually', 'period']).default('monthly'),
+  dateRangeType: zod.enum(['daily', 'weekly', 'monthly', 'annually', 'period']).default('monthly'),
   dateRangeCustomStart: zod
     .string()
     .transform((str) => new Date(str))

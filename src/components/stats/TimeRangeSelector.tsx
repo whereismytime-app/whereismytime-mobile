@@ -4,11 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface TimeRangeSelectorProps {
-  timeRangeType: 'weekly' | 'monthly' | 'annually' | 'period';
+  timeRangeType: 'daily' | 'weekly' | 'monthly' | 'annually' | 'period';
   displayText: string;
   customStart: Date;
   customEnd: Date;
-  onTypeChange: (type: 'weekly' | 'monthly' | 'annually' | 'period') => void;
+  onTypeChange: (type: 'daily' | 'weekly' | 'monthly' | 'annually' | 'period') => void;
   onNavigate: (direction: 'prev' | 'next') => void;
   onCustomDatesChange: (start: Date, end: Date) => void;
 }
@@ -27,13 +27,14 @@ export function TimeRangeSelector({
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
   const timeRangeOptions = [
+    { value: 'daily' as const, label: 'Daily' },
     { value: 'weekly' as const, label: 'Weekly' },
     { value: 'monthly' as const, label: 'Monthly' },
     { value: 'annually' as const, label: 'Annually' },
     { value: 'period' as const, label: 'Period' },
   ];
 
-  const handleTypeSelect = (type: 'weekly' | 'monthly' | 'annually' | 'period') => {
+  const handleTypeSelect = (type: 'daily' | 'weekly' | 'monthly' | 'annually' | 'period') => {
     onTypeChange(type);
     setShowTypeSelector(false);
   };

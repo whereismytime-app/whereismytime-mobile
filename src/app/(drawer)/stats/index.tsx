@@ -38,6 +38,13 @@ export default function StatsScreen() {
     // TODO: Make use of Calendar Primary TimeZone. Right now, it uses Device Timezone.
     const referenceDate = params?.dateRangeRef || new Date();
     switch (params?.dateRangeType || 'monthly') {
+      case 'daily':
+        const startOfDay = new Date(referenceDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(referenceDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        return { start: startOfDay, end: endOfDay };
+
       case 'weekly':
         const startOfWeek = new Date(referenceDate);
         const day = startOfWeek.getDay();
@@ -83,6 +90,11 @@ export default function StatsScreen() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      console.info('Loading Stats', {
+        ...params,
+        start: timeRange.start.toISOString(),
+        end: timeRange.end.toISOString(),
+      });
 
       if (params?.categoryId) {
         // Get category report
@@ -176,7 +188,9 @@ export default function StatsScreen() {
     );
   };
 
-  const handleTimeRangeTypeChange = (type: 'weekly' | 'monthly' | 'annually' | 'period') => {
+  const handleTimeRangeTypeChange = (
+    type: 'daily' | 'weekly' | 'monthly' | 'annually' | 'period'
+  ) => {
     updateSearchParams({ dateRangeType: type });
   };
 
@@ -188,6 +202,9 @@ export default function StatsScreen() {
     const newDate = new Date(params?.dateRangeRef ?? new Date());
 
     switch (params?.dateRangeType || 'monthly') {
+      case 'daily':
+        newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1));
+        break;
       case 'weekly':
         newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
         break;
@@ -203,20 +220,34 @@ export default function StatsScreen() {
   };
 
   const formatTimeRangeDisplay = (): string => {
+    const showYear = timeRange.start.getFullYear() !== new Date().getFullYear();
+
     switch (params?.dateRangeType || 'monthly') {
+      case 'daily':
+        return timeRange.start.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        });
+
       case 'weekly':
         const weekStart = timeRange.start.toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
+          year: showYear ? 'numeric' : undefined,
         });
         const weekEnd = timeRange.end.toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
+          year: showYear ? 'numeric' : undefined,
         });
         return `${weekStart} - ${weekEnd}`;
 
       case 'monthly':
-        return timeRange.start.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+        return timeRange.start.toLocaleDateString('en-US', {
+          year: showYear ? 'numeric' : undefined,
+          month: 'long',
+        });
 
       case 'annually':
         return timeRange.start.getFullYear().toString();
