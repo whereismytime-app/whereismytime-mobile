@@ -6,7 +6,6 @@ import { eq, isNull, desc, and, or, inArray } from 'drizzle-orm';
 export interface CategorizationResult {
   eventId: string;
   categoryId: string | null;
-  matchedRule?: CategoryRule;
   isManuallyCategorized?: boolean;
 }
 
@@ -49,30 +48,39 @@ export class EventCategorizationService {
 
     const categories = await this.getCategories();
 
-    // Find the first matching category
+    // Find list of matching categories
+    const matchingCategories: typeof categories = [];
     for (const category of categories) {
       const rules = category.rules as CategoryRule[];
       if (!rules || rules.length === 0) continue;
 
       for (const rule of rules) {
-        if (await this.eventMatchesRule(event, rule)) {
-          // Update event with the matched category
-          await this.db
-            .update(events)
-            .set({
-              categoryId: category.id,
-              isManuallyCategorized: false,
-            })
-            .where(eq(events.id, event.id));
-
-          return {
-            eventId: event.id,
-            categoryId: category.id,
-            matchedRule: rule,
-            isManuallyCategorized: false,
-          };
+        if (this.eventMatchesRule(event, rule)) {
+          matchingCategories.push(category);
         }
       }
+    }
+
+    // Find the one with highest priority
+    if (matchingCategories.length > 0) {
+      const appliedCategory = matchingCategories.reduce((prev, current) => {
+        return (prev.priority || 0) > (current.priority || 0) ? prev : current;
+      });
+
+      // Update event with the matched category
+      await this.db
+        .update(events)
+        .set({
+          categoryId: appliedCategory.id,
+          isManuallyCategorized: false,
+        })
+        .where(eq(events.id, event.id));
+
+      return {
+        eventId: event.id,
+        categoryId: appliedCategory.id,
+        isManuallyCategorized: false,
+      };
     }
 
     // No match found - clear any existing auto categorization
@@ -220,8 +228,8 @@ export class EventCategorizationService {
   /**
    * Check if an event matches a specific rule
    */
-  private async eventMatchesRule(event: DBEvent, rule: CategoryRule): Promise<boolean> {
-    const title = (event.title || '');
+  private eventMatchesRule(event: DBEvent, rule: CategoryRule): boolean {
+    const title = event.title || '';
     const rule_content = rule.content;
 
     switch (rule.type) {
