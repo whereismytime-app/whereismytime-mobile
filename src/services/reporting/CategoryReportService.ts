@@ -1,6 +1,10 @@
 import type { DrizzleDB } from '@/db/SQLiteProvider';
 import { events, categories, calendars, type DBEvent, type Category } from '@/db/schema';
-import { CategoryService, type CategoryWithChildren } from '../category/CategoryService';
+import {
+  CategoryService,
+  UNCATEGORIZED_CATEGORY,
+  type CategoryWithChildren,
+} from '../category/CategoryService';
 import { eq, and, gte, lte, isNull } from 'drizzle-orm';
 import { CalendarService } from '../calendar/CalendarService';
 
@@ -66,6 +70,21 @@ export class CategoryReportService {
     // Calculate category reports
     const categoryBreakdown = await this.buildCategoryReports(categoryTree, eventsWithDetails);
 
+    // Add uncategorized events as a separate category if there are any
+    const uncategorizedEvents = eventsWithDetails.filter((event) => !event.categoryId);
+    if (uncategorizedEvents.length > 0) {
+      const uncategorizedReport: CategoryReport = {
+        category: UNCATEGORIZED_CATEGORY,
+        directDuration: this.sumDuration(uncategorizedEvents),
+        totalDuration: this.sumDuration(uncategorizedEvents),
+        eventCount: uncategorizedEvents.length,
+        totalEventCount: uncategorizedEvents.length,
+        children: [],
+        categoryPath: [UNCATEGORIZED_CATEGORY.name],
+      };
+      categoryBreakdown.push(uncategorizedReport);
+    }
+
     // Calculate summary statistics
     const summary = this.calculateSummary(eventsWithDetails, categoryBreakdown);
 
@@ -111,112 +130,6 @@ export class CategoryReportService {
   }
 
   /**
-   * Get uncategorized events report
-   */
-  async getUncategorizedReport(timeRange: TimeRange): Promise<{
-    events: EventWithCategory[];
-    totalDuration: number;
-    totalCount: number;
-  }> {
-    const uncategorizedEvents = await this.db
-      .select({
-        // Event fields
-        id: events.id,
-        calendarId: events.calendarId,
-        title: events.title,
-        description: events.description,
-        eventType: events.eventType,
-        isAllDay: events.isAllDay,
-        start: events.start,
-        end: events.end,
-        effectiveDuration: events.effectiveDuration,
-        categoryId: events.categoryId,
-        isManuallyCategorized: events.isManuallyCategorized,
-        updatedAt: events.updatedAt,
-        createdAt: events.createdAt,
-        // Calendar fields
-        calendarTitle: calendars.title,
-      })
-      .from(events)
-      .leftJoin(calendars, eq(events.calendarId, calendars.id))
-      .where(
-        and(
-          isNull(events.categoryId),
-          gte(events.start, timeRange.start),
-          lte(events.end, timeRange.end)
-        )
-      );
-
-    const eventsWithDetails: EventWithCategory[] = uncategorizedEvents.map((row) => ({
-      id: row.id,
-      calendarId: row.calendarId,
-      title: row.title,
-      description: row.description,
-      eventType: row.eventType,
-      isAllDay: row.isAllDay,
-      start: row.start,
-      end: row.end,
-      effectiveDuration: row.effectiveDuration,
-      categoryId: row.categoryId,
-      isManuallyCategorized: row.isManuallyCategorized,
-      updatedAt: row.updatedAt,
-      createdAt: row.createdAt,
-      category: null,
-      calendar: row.calendarTitle
-        ? {
-            id: row.calendarId,
-            title: row.calendarTitle,
-          }
-        : null,
-    }));
-
-    return {
-      events: eventsWithDetails,
-      totalDuration: this.sumDuration(eventsWithDetails),
-      totalCount: eventsWithDetails.length,
-    };
-  }
-
-  /**
-   * Get time distribution by category for chart/visualization purposes
-   */
-  async getCategoryTimeDistribution(timeRange: TimeRange): Promise<
-    {
-      categoryName: string;
-      duration: number;
-      percentage: number;
-      color: string;
-    }[]
-  > {
-    const report = await this.generateFullReport(timeRange);
-
-    const distribution = report.categoryBreakdown.map((categoryReport) => ({
-      categoryName: categoryReport.category.name,
-      duration: categoryReport.totalDuration,
-      percentage:
-        report.totalDuration > 0
-          ? Math.round((categoryReport.totalDuration / report.totalDuration) * 100 * 100) / 100
-          : 0,
-      color: categoryReport.category.color,
-    }));
-
-    // Add uncategorized if there are uncategorized events
-    if (report.uncategorizedDuration > 0) {
-      distribution.push({
-        categoryName: 'Uncategorized',
-        duration: report.uncategorizedDuration,
-        percentage:
-          report.totalDuration > 0
-            ? Math.round((report.uncategorizedDuration / report.totalDuration) * 100 * 100) / 100
-            : 0,
-        color: '#9CA3AF', // Gray color for uncategorized
-      });
-    }
-
-    return distribution.sort((a, b) => b.duration - a.duration);
-  }
-
-  /**
    * Helper: Get all events in time range with category and calendar details
    */
   async getEventsWithDetails({
@@ -259,8 +172,13 @@ export class CategoryReportService {
       lte(events.start, new Date()),
       lte(events.end, timeRange.end),
     ];
+
     if (categoryId) {
-      conditions.push(eq(events.categoryId, categoryId));
+      conditions.push(
+        categoryId === UNCATEGORIZED_CATEGORY.id
+          ? isNull(events.categoryId)
+          : eq(events.categoryId, categoryId)
+      );
     }
 
     const results = await query.where(and(...conditions));
@@ -321,7 +239,11 @@ export class CategoryReportService {
     allEvents: EventWithCategory[]
   ): Promise<CategoryReport> {
     // Get direct events for this category
-    const directEvents = allEvents.filter((event) => event.categoryId === category.id);
+    const directEvents = allEvents.filter(
+      (event) =>
+        event.categoryId === category.id ||
+        (event.categoryId === null && category.id === UNCATEGORIZED_CATEGORY.id)
+    );
     const directDuration = this.sumDuration(directEvents);
 
     // Build child reports recursively

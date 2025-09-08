@@ -23,6 +23,16 @@ export interface CategoryWithChildren extends Category {
   children: CategoryWithChildren[];
 }
 
+// Virtual category for uncategorized events
+export const UNCATEGORIZED_CATEGORY: Category = {
+  id: '__uncategorized__',
+  name: 'Uncategorized',
+  color: '#9CA3AF',
+  priority: -1,
+  rules: null,
+  parentCategoryId: null,
+};
+
 export class CategoryService {
   constructor(private db: DrizzleDB) {}
 
@@ -83,6 +93,10 @@ export class CategoryService {
   }
 
   async getCategoryById(id: string): Promise<Category | null> {
+    if (id === UNCATEGORIZED_CATEGORY.id) {
+      return UNCATEGORIZED_CATEGORY;
+    }
+
     const [category] = await this.db
       .select()
       .from(categories)
