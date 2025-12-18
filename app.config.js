@@ -10,14 +10,19 @@ export default {
       favicon: './assets/favicon.png',
     },
     plugins: [
-      'expo-router',
       [
-        'expo-dev-launcher',
+        // Read more about this at docs/build-issues/expo-54-ios-include-of-non-modular-header-inside-framework-module/README.md
+        'expo-build-properties',
         {
-          launchMode: 'most-recent',
+          ios: {
+            forceStaticLinking: ['RNFBApp', 'RNFBAuth', 'RNFBCrashlytics'],
+            useFrameworks: 'static',
+          },
         },
       ],
+      'expo-router',
       'expo-web-browser',
+      'expo-font',
       [
         'expo-splash-screen',
         {
@@ -78,9 +83,9 @@ export default {
       package: 'com.fahimalizain.whereismytime',
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
       blockedPermissions: [
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
-      ]
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+      ],
     },
     extra: {
       router: {},

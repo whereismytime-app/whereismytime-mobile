@@ -79,9 +79,9 @@ export class CategoryImportService {
         importedCount: 0,
         skippedCount: 0,
         errors: [
-          error instanceof Error 
-            ? `Import failed: ${error.message}` 
-            : 'Import failed: Unknown error'
+          error instanceof Error
+            ? `Import failed: ${error.message}`
+            : 'Import failed: Unknown error',
         ],
       };
     }
@@ -112,7 +112,9 @@ export class CategoryImportService {
       const validationResult = CategoryExportDataSchema.safeParse(jsonData);
       if (!validationResult.success) {
         result.errors.push('Invalid category export format');
-        result.errors.push(...validationResult.error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`));
+        result.errors.push(
+          ...validationResult.error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`)
+        );
         return result;
       }
 
@@ -123,7 +125,7 @@ export class CategoryImportService {
 
       // Import categories
       const importResult = await this.importCategoriesFromData(importData.categories);
-      
+
       result.importedCount = importResult.importedCount;
       result.skippedCount = importResult.skippedCount;
       result.errors.push(...importResult.errors);
@@ -133,8 +135,8 @@ export class CategoryImportService {
     } catch (error) {
       console.error('Error during import:', error);
       result.errors.push(
-        error instanceof Error 
-          ? `Import processing failed: ${error.message}` 
+        error instanceof Error
+          ? `Import processing failed: ${error.message}`
           : 'Import processing failed: Unknown error'
       );
       return result;
@@ -147,9 +149,7 @@ export class CategoryImportService {
   private async clearExistingCategories(): Promise<void> {
     try {
       // Set all event categoryId to NULL where it's not already null
-      await this.db
-        .update(events)
-        .set({ categoryId: null });
+      await this.db.update(events).set({ categoryId: null });
 
       // Delete all categories
       await this.db.delete(categories);
@@ -173,7 +173,7 @@ export class CategoryImportService {
 
     // Import categories with their children
     await this.processCategories(categoriesData, undefined, result);
-    
+
     return result;
   }
 
@@ -196,16 +196,12 @@ export class CategoryImportService {
         };
 
         const newCategory = await this.categoryService.createCategory(createInput);
-        
+
         result.importedCount++;
-        
+
         // Process children if they exist
         if (categoryData.children && categoryData.children.length > 0) {
-          await this.processCategories(
-            categoryData.children,
-            newCategory.id,
-            result
-          );
+          await this.processCategories(categoryData.children, newCategory.id, result);
         }
       } catch (error) {
         result.skippedCount++;
@@ -229,11 +225,13 @@ export class CategoryImportService {
     try {
       const jsonData = JSON.parse(jsonString);
       const validationResult = CategoryExportDataSchema.safeParse(jsonData);
-      
+
       if (!validationResult.success) {
         return {
           valid: false,
-          errors: validationResult.error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`),
+          errors: validationResult.error.issues.map(
+            (e: any) => `${e.path.join('.')}: ${e.message}`
+          ),
           categoryCount: 0,
         };
       }

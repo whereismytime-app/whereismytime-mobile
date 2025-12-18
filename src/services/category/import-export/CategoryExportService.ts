@@ -32,7 +32,7 @@ export class CategoryExportService {
     try {
       // Get all categories with their tree structure
       const categoriesTree = await this.categoryService.getCategoriesTree();
-      
+
       // Convert to export format
       const exportData: CategoryExportData = {
         version: '1.0',
@@ -46,11 +46,9 @@ export class CategoryExportService {
       const fileUri = FileSystem.documentDirectory + filename;
 
       // Write to file
-      await FileSystem.writeAsStringAsync(
-        fileUri,
-        JSON.stringify(exportData, null, 2),
-        { encoding: FileSystem.EncodingType.UTF8 }
-      );
+      await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(exportData, null, 2), {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
 
       // Check if sharing is available
       const isAvailable = await Sharing.isAvailableAsync();
@@ -69,9 +67,7 @@ export class CategoryExportService {
     } catch (error) {
       console.error('Error exporting categories:', error);
       throw new Error(
-        error instanceof Error 
-          ? `Export failed: ${error.message}` 
-          : 'Export failed: Unknown error'
+        error instanceof Error ? `Export failed: ${error.message}` : 'Export failed: Unknown error'
       );
     }
   }
@@ -87,16 +83,16 @@ export class CategoryExportService {
         priority: category.priority ?? 0,
         rules: category.rules || undefined,
       };
-      
+
       // Add children if they exist
       if (category.children && category.children.length > 0) {
-        exportedCategory.children = category.children.map(child => convertCategory(child));
+        exportedCategory.children = category.children.map((child) => convertCategory(child));
       }
-      
+
       return exportedCategory;
     };
-    
-    return categories.map(category => convertCategory(category));
+
+    return categories.map((category) => convertCategory(category));
   }
 
   /**
@@ -104,7 +100,7 @@ export class CategoryExportService {
    */
   async getExportData(): Promise<CategoryExportData> {
     const categoriesTree = await this.categoryService.getCategoriesTree();
-    
+
     return {
       version: '1.0',
       exportDate: new Date().toISOString(),

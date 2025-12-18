@@ -75,12 +75,10 @@ export const EventTile: React.FC<EventTileProps> = React.memo(({ event, onPress 
           <Text className="text-lg font-semibold text-gray-900" numberOfLines={2}>
             {event.title}
           </Text>
-          
+
           <View className="mt-1 flex-row items-center">
             <Ionicons name="time-outline" size={14} color="#6B7280" />
-            <Text className="ml-1 text-sm text-gray-600">
-              {formattedTime}
-            </Text>
+            <Text className="ml-1 text-sm text-gray-600">{formattedTime}</Text>
           </View>
 
           {event.description && (
@@ -93,9 +91,9 @@ export const EventTile: React.FC<EventTileProps> = React.memo(({ event, onPress 
         <View className="items-end">
           {event.category ? (
             <View className="flex-row items-center">
-              <View 
-                className="mr-2 h-3 w-3 rounded-full" 
-                style={{ backgroundColor: event.category.color }} 
+              <View
+                className="mr-2 h-3 w-3 rounded-full"
+                style={{ backgroundColor: event.category.color }}
               />
               <Text className="text-xs text-gray-600" numberOfLines={1}>
                 {event.category.name}
@@ -104,9 +102,7 @@ export const EventTile: React.FC<EventTileProps> = React.memo(({ event, onPress 
           ) : (
             <View className="flex-row items-center">
               <Ionicons name="help-circle-outline" size={14} color="#9CA3AF" />
-              <Text className="ml-1 text-xs text-gray-400">
-                Uncategorized
-              </Text>
+              <Text className="ml-1 text-xs text-gray-400">Uncategorized</Text>
             </View>
           )}
 

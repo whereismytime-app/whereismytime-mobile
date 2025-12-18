@@ -9,7 +9,17 @@ import { CategoryImportService } from '@/services/category/import-export/Categor
 import { type CategoryRule } from '@/types/category_rule';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View, ActionSheetIOS, Platform } from 'react-native';
+import {
+  Alert,
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  ActionSheetIOS,
+  Platform,
+} from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useDrizzle } from '../db/SQLiteProvider';
 
@@ -49,7 +59,7 @@ const RuleItem: React.FC<RuleItemProps> = ({ rule, index, onUpdate, onRemove }) 
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ['Cancel', ...ruleTypes.map(type => type.label)],
+          options: ['Cancel', ...ruleTypes.map((type) => type.label)],
           cancelButtonIndex: 0,
         },
         (buttonIndex) => {
@@ -61,7 +71,8 @@ const RuleItem: React.FC<RuleItemProps> = ({ rule, index, onUpdate, onRemove }) 
     }
   };
 
-  const selectedRuleTypeLabel = ruleTypes.find(type => type.value === rule.type)?.label || 'Select type';
+  const selectedRuleTypeLabel =
+    ruleTypes.find((type) => type.value === rule.type)?.label || 'Select type';
 
   return (
     <View className="mb-3 rounded-lg border border-gray-300 p-3">
@@ -77,8 +88,7 @@ const RuleItem: React.FC<RuleItemProps> = ({ rule, index, onUpdate, onRemove }) 
         {Platform.OS === 'ios' ? (
           <TouchableOpacity
             onPress={showRuleTypeActionSheet}
-            className="rounded-lg border border-gray-300 px-3 py-3 flex-row items-center justify-between"
-          >
+            className="flex-row items-center justify-between rounded-lg border border-gray-300 px-3 py-3">
             <Text className="text-base">{selectedRuleTypeLabel}</Text>
             <Ionicons name="chevron-down" size={20} color="#666" />
           </TouchableOpacity>
@@ -156,8 +166,12 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
   const showParentCategoryActionSheet = () => {
     if (Platform.OS === 'ios') {
       const flatCategories = flattenCategories(allCategories, 0, category?.id);
-      const options = ['Cancel', 'No Parent (Root Category)', ...flatCategories.map(cat => '  '.repeat(cat.level) + cat.name)];
-      
+      const options = [
+        'Cancel',
+        'No Parent (Root Category)',
+        ...flatCategories.map((cat) => '  '.repeat(cat.level) + cat.name),
+      ];
+
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options,
@@ -177,8 +191,10 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
   const getSelectedParentCategoryLabel = () => {
     if (!selectedParentId) return 'No Parent (Root Category)';
     const flatCategories = flattenCategories(allCategories, 0, category?.id);
-    const selectedCategory = flatCategories.find(cat => cat.id === selectedParentId);
-    return selectedCategory ? '  '.repeat(selectedCategory.level) + selectedCategory.name : 'No Parent (Root Category)';
+    const selectedCategory = flatCategories.find((cat) => cat.id === selectedParentId);
+    return selectedCategory
+      ? '  '.repeat(selectedCategory.level) + selectedCategory.name
+      : 'No Parent (Root Category)';
   };
 
   useEffect(() => {
@@ -357,9 +373,10 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
               {Platform.OS === 'ios' ? (
                 <TouchableOpacity
                   onPress={showParentCategoryActionSheet}
-                  className="rounded-lg border border-gray-300 px-3 py-3 flex-row items-center justify-between"
-                >
-                  <Text className="text-base flex-1" numberOfLines={1}>{getSelectedParentCategoryLabel()}</Text>
+                  className="flex-row items-center justify-between rounded-lg border border-gray-300 px-3 py-3">
+                  <Text className="flex-1 text-base" numberOfLines={1}>
+                    {getSelectedParentCategoryLabel()}
+                  </Text>
                   <Ionicons name="chevron-down" size={20} color="#666" />
                 </TouchableOpacity>
               ) : (
@@ -641,16 +658,16 @@ export const CategoriesManagement: React.FC = () => {
             try {
               setLoading(true);
               const result = await categoryImportService.importCategories();
-              
+
               if (result.success) {
                 await loadCategories(); // Refresh the categories list
                 Alert.alert(
                   'Import Successful',
                   `Imported ${result.importedCount} categories.${
-                    result.skippedCount > 0 ? ` ${result.skippedCount} categories were skipped.` : ''
-                  }${
-                    result.errors.length > 0 ? `\n\nWarnings:\n${result.errors.join('\n')}` : ''
-                  }`
+                    result.skippedCount > 0
+                      ? ` ${result.skippedCount} categories were skipped.`
+                      : ''
+                  }${result.errors.length > 0 ? `\n\nWarnings:\n${result.errors.join('\n')}` : ''}`
                 );
               } else {
                 Alert.alert(
@@ -659,7 +676,8 @@ export const CategoriesManagement: React.FC = () => {
                 );
               }
             } catch (error) {
-              const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+              const errorMessage =
+                error instanceof Error ? error.message : 'Unknown error occurred';
               Alert.alert('Import Error', errorMessage);
               console.error('Import error:', error);
             } finally {
