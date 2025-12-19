@@ -3,11 +3,15 @@ import { Link } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
 
 import { HeaderButton } from '@/components/HeaderButton';
+import { CustomDrawerContent } from '@/components/drawer/CustomDrawerContent';
 import StatsDrawerHeader from '@/components/stats/StatsDrawerHeader';
 
 const DrawerLayout = () => {
   return (
-    <Drawer backBehavior="history" initialRouteName="index">
+    <Drawer
+      backBehavior="history"
+      initialRouteName="index"
+      drawerContent={(props) => <CustomDrawerContent {...props} />}>
       <Drawer.Screen
         name="index"
         options={{
@@ -57,6 +61,16 @@ const DrawerLayout = () => {
           drawerLabel: 'Events',
           drawerIcon: ({ size, color }) => (
             <Ionicons name="list-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="calendar-view"
+        options={{
+          headerTitle: 'Calendar View',
+          drawerLabel: 'Calendar View',
+          drawerIcon: ({ size, color }) => (
+            <MaterialIcons name="view-week" size={size} color={color} />
           ),
         }}
       />

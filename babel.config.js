@@ -2,7 +2,7 @@ module.exports = function (api) {
   api.cache(true);
   let plugins = [];
 
-  plugins.push('react-native-reanimated/plugin');
+  plugins.push('react-native-worklets/plugin');
 
   // drizzle-orm
   plugins.push(['inline-import', { extensions: ['.sql'] }]);
