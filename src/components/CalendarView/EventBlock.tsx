@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Text, Pressable } from 'react-native';
 import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
 import { type EventWithCategory } from '@/services/events/EventsService';
@@ -12,7 +12,11 @@ interface EventBlockProps {
 const EVENT_HORIZONTAL_PADDING = 2;
 const MIN_EVENT_HEIGHT = 20;
 
-export function EventBlock({ event, hourHeight, columnWidth }: EventBlockProps) {
+export const EventBlock = memo(function EventBlock({
+  event,
+  hourHeight,
+  columnWidth,
+}: EventBlockProps) {
   // Pre-calculate time values outside worklet (Date objects can't be accessed in UI runtime)
   const startMinutes = useMemo(
     () => (event.start != null ? event.start.getHours() * 60 + event.start.getMinutes() : 0),
@@ -67,7 +71,7 @@ export function EventBlock({ event, hourHeight, columnWidth }: EventBlockProps) 
       </Pressable>
     </Animated.View>
   );
-}
+});
 
 function formatTime(date: Date): string {
   const hours = date.getHours();

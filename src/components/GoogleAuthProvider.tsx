@@ -23,6 +23,7 @@ const GOOGLE_AUTH_SCOPES = [
 
 GoogleSignin.configure({
   scopes: GOOGLE_AUTH_SCOPES,
+  // Web Client ID (and not iOS or Android client ID)
   webClientId: '771523609080-rduodmmac6t39q40uk84fsdvdv30ciav.apps.googleusercontent.com',
   offlineAccess: true,
 });

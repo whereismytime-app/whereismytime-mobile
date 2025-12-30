@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, ScrollView, VirtualizedList, LayoutChangeEvent } from 'react-native';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, clamp } from 'react-native-reanimated';
@@ -6,6 +6,7 @@ import type { ViewMode } from '@/components/drawer/CustomDrawerContent';
 import { TimeAxis, TIME_AXIS_WIDTH } from './TimeAxis';
 import { DayColumn, DAY_HEADER_HEIGHT } from './DayColumn';
 import { CalendarViewEventsProvider } from './CalendarViewEventsProvider';
+import { HourLines } from './HourLines';
 
 interface CalendarViewProps {
   viewMode: ViewMode;
@@ -21,6 +22,7 @@ const INFINITE_COUNT = 100000; // Effectively infinite
 const TODAY_INDEX = Math.floor(INFINITE_COUNT / 2);
 
 export function CalendarView({ viewMode }: CalendarViewProps) {
+  console.info('Rendering CalendarView with viewMode:', viewMode);
   // Shared values for pinch-to-zoom
   const hourHeight = useSharedValue(DEFAULT_HOUR_HEIGHT);
   const savedScale = useSharedValue(1);
@@ -49,7 +51,8 @@ export function CalendarView({ viewMode }: CalendarViewProps) {
   // Calculate column width once container is measured
   const columnWidth = useMemo(() => {
     if (containerWidth === null) return 0;
-    return (containerWidth - TIME_AXIS_WIDTH) / numDays;
+    // Having it rounded improves VirtualizedList performance by alot
+    return Math.ceil((containerWidth - TIME_AXIS_WIDTH) / numDays);
   }, [containerWidth, numDays]);
 
   // Pinch gesture handler
@@ -73,14 +76,31 @@ export function CalendarView({ viewMode }: CalendarViewProps) {
     height: HOURS_IN_DAY * hourHeight.value,
   }));
 
+  const renderDayColumn = useCallback(
+    ({ item: dateKey }: { item: string }) => {
+      return (
+        <DayColumn
+          key={dateKey}
+          dateKey={dateKey}
+          hourHeight={hourHeight}
+          isToday={dateKey === new Date().toISOString().split('T')[0]}
+          columnWidth={columnWidth}
+        />
+      );
+    },
+    [columnWidth, hourHeight]
+  );
+
   useEffect(() => {
+    if (columnWidth === 0) return;
     // Use setTimeout to ensure the list is mounted and measured
     const timer = setTimeout(() => {
       listRef.current?.scrollToIndex({
         index: TODAY_INDEX,
-        animated: true,
+        animated: false,
       });
     }, 0);
+    console.info('CalendarView mounted, scrolling to today index', { TODAY_INDEX, columnWidth });
     return () => clearTimeout(timer);
   }, [columnWidth]);
 
@@ -98,37 +118,37 @@ export function CalendarView({ viewMode }: CalendarViewProps) {
                 {/* Time Axis */}
                 <TimeAxis hourHeight={hourHeight} marginTop={DAY_HEADER_HEIGHT} />
 
+                {/* Hour Lines Overlay */}
+                {containerWidth && (
+                  <HourLines hourHeight={hourHeight} calendarWidth={containerWidth} />
+                )}
+
                 {/* Day Columns */}
-                <VirtualizedList
-                  ref={listRef}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  getItemCount={() => INFINITE_COUNT}
-                  getItem={(data: unknown, index: number) => {
-                    const daysFromToday = index - TODAY_INDEX;
-                    const date = new Date();
-                    date.setDate(date.getDate() + daysFromToday);
-                    return date.toISOString().split('T')[0];
-                  }}
-                  keyExtractor={(item, _) => item}
-                  initialScrollIndex={TODAY_INDEX}
-                  getItemLayout={(_, index) => ({
-                    length: columnWidth,
-                    offset: columnWidth * index,
-                    index,
-                  })}
-                  renderItem={({ item: dateKey }) => {
-                    return (
-                      <DayColumn
-                        key={dateKey}
-                        dateKey={dateKey}
-                        hourHeight={hourHeight}
-                        isToday={dateKey === new Date().toISOString().split('T')[0]}
-                        numDays={numDays}
-                      />
-                    );
-                  }}
-                />
+                {columnWidth > 0 && (
+                  <VirtualizedList
+                    ref={listRef}
+                    horizontal
+                    initialNumToRender={5}
+                    maxToRenderPerBatch={3}
+                    windowSize={numDays + 3}
+                    showsHorizontalScrollIndicator={false}
+                    getItemCount={() => INFINITE_COUNT}
+                    getItem={(data: unknown, index: number) => {
+                      const daysFromToday = index - TODAY_INDEX;
+                      const date = new Date();
+                      date.setDate(date.getDate() + daysFromToday);
+                      return date.toISOString().split('T')[0];
+                    }}
+                    keyExtractor={(item, _) => item}
+                    initialScrollIndex={TODAY_INDEX}
+                    getItemLayout={(_, index) => ({
+                      length: columnWidth,
+                      offset: columnWidth * index,
+                      index,
+                    })}
+                    renderItem={renderDayColumn}
+                  />
+                )}
               </Animated.View>
             </ScrollView>
           </GestureDetector>

@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, useWindowDimensions, ActivityIndicator } from 'react-native';
-import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
+import { memo } from 'react';
+import { View, Text, ActivityIndicator } from 'react-native';
+import { SharedValue } from 'react-native-reanimated';
 import { EventBlock } from './EventBlock';
 import { useCalendarViewEvents } from './CalendarViewEventsProvider';
 
@@ -8,19 +8,20 @@ interface DayColumnProps {
   dateKey: string;
   hourHeight: SharedValue<number>;
   isToday: boolean;
-  numDays: number;
+  columnWidth: number;
 }
 
 export const DAY_HEADER_HEIGHT = 60;
-const TIME_AXIS_WIDTH = 50;
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-export function DayColumn({ dateKey, hourHeight, isToday, numDays }: DayColumnProps) {
-  const { width: screenWidth } = useWindowDimensions();
+export const DayColumn = memo(function DayColumn({
+  dateKey,
+  hourHeight,
+  isToday,
+  columnWidth,
+}: DayColumnProps) {
+  // console.log('Rendering DayColumn for dateKey:', dateKey);
   const { events, isLoading } = useCalendarViewEvents(dateKey);
   const date = new Date(dateKey);
-  // Calculate column width based on number of days
-  const columnWidth = (screenWidth - TIME_AXIS_WIDTH) / numDays;
 
   const formatDayHeader = (d: Date) => {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -49,11 +50,6 @@ export function DayColumn({ dateKey, hourHeight, isToday, numDays }: DayColumnPr
       </View>
 
       <View className="relative">
-        {/* Hour Grid Lines */}
-        {HOURS.map((hour) => (
-          <HourLine key={hour} hourHeight={hourHeight} />
-        ))}
-
         {/* Event Blocks */}
         {events.map((event) => (
           <EventBlock
@@ -72,16 +68,4 @@ export function DayColumn({ dateKey, hourHeight, isToday, numDays }: DayColumnPr
       </View>
     </View>
   );
-}
-
-interface HourLineProps {
-  hourHeight: SharedValue<number>;
-}
-
-function HourLine({ hourHeight }: HourLineProps) {
-  const animatedStyle = useAnimatedStyle(() => ({
-    height: hourHeight.value,
-  }));
-
-  return <Animated.View style={animatedStyle} className="border-b border-gray-100" />;
-}
+});

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text } from 'react-native';
 import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
 
@@ -32,16 +32,16 @@ function TimeSlot({ hour, hourHeight }: TimeSlotProps) {
     height: hourHeight.value,
   }));
 
-  const formatHour = (h: number) => {
-    if (h === 0) return ''; // 12 AM label is omitted for cleaner look
-    if (h === 12) return '12 PM';
-    if (h < 12) return `${h} AM`;
-    return `${h - 12} PM`;
-  };
+  const formattedHour = useMemo(() => {
+    if (hour === 0) return ''; // 12 AM label is omitted for cleaner look
+    if (hour === 12) return '12 PM';
+    if (hour < 12) return `${hour} AM`;
+    return `${hour - 12} PM`;
+  }, [hour]);
 
   return (
-    <Animated.View style={animatedStyle} className="justify-start border-b border-gray-100 px-1">
-      <Text className="-mt-2 text-right text-xs text-gray-400">{formatHour(hour)}</Text>
+    <Animated.View style={animatedStyle} className="justify-start px-1">
+      <Text className="-mt-2 text-right text-xs text-gray-400">{formattedHour}</Text>
     </Animated.View>
   );
 }
