@@ -1,22 +1,29 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, ScrollView, VirtualizedList, LayoutChangeEvent } from 'react-native';
+import { View, ScrollView, VirtualizedList, LayoutChangeEvent, PixelRatio } from 'react-native';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, clamp } from 'react-native-reanimated';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  clamp,
+  withTiming,
+} from 'react-native-reanimated';
 import type { ViewMode } from '@/components/drawer/CustomDrawerContent';
-import { TimeAxis, TIME_AXIS_WIDTH } from './TimeAxis';
-import { DayColumn, DAY_HEADER_HEIGHT } from './DayColumn';
+import { TimeAxis } from './TimeAxis';
+import { DayColumn } from './DayColumnSkia';
 import { CalendarViewEventsProvider } from './CalendarViewEventsProvider';
-import { HourLines } from './HourLines';
+import {
+  DAY_HEADER_HEIGHT,
+  DEFAULT_HOUR_HEIGHT,
+  HOURS_IN_DAY,
+  MIN_HOUR_HEIGHT,
+  MAX_HOUR_HEIGHT,
+  TIME_AXIS_WIDTH,
+} from './constants';
 
 interface CalendarViewProps {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
 }
-
-const HOURS_IN_DAY = 24;
-const MIN_HOUR_HEIGHT = 40;
-const MAX_HOUR_HEIGHT = 180;
-const DEFAULT_HOUR_HEIGHT = 60;
 
 const INFINITE_COUNT = 100000; // Effectively infinite
 const TODAY_INDEX = Math.floor(INFINITE_COUNT / 2);
@@ -52,7 +59,8 @@ export function CalendarView({ viewMode }: CalendarViewProps) {
   const columnWidth = useMemo(() => {
     if (containerWidth === null) return 0;
     // Having it rounded improves VirtualizedList performance by alot
-    return Math.ceil((containerWidth - TIME_AXIS_WIDTH) / numDays);
+    // return Math.ceil((containerWidth - TIME_AXIS_WIDTH) / numDays);
+    return PixelRatio.roundToNearestPixel((containerWidth - TIME_AXIS_WIDTH) / numDays);
   }, [containerWidth, numDays]);
 
   // Pinch gesture handler
@@ -69,6 +77,9 @@ export function CalendarView({ viewMode }: CalendarViewProps) {
     })
     .onEnd(() => {
       // Optional: snap to nearest reasonable value
+      // Animate to nearest 5px for hour height
+      const snappedHeight = Math.round(hourHeight.value / 5) * 5;
+      hourHeight.value = withTiming(snappedHeight, { duration: 1000 });
     });
 
   // Animated style for the calendar content
@@ -119,18 +130,19 @@ export function CalendarView({ viewMode }: CalendarViewProps) {
                 <TimeAxis hourHeight={hourHeight} marginTop={DAY_HEADER_HEIGHT} />
 
                 {/* Hour Lines Overlay */}
-                {containerWidth && (
+                {/* {containerWidth && (
                   <HourLines hourHeight={hourHeight} calendarWidth={containerWidth} />
-                )}
+                )} */}
 
                 {/* Day Columns */}
                 {columnWidth > 0 && (
                   <VirtualizedList
                     ref={listRef}
+                    // debug={true}
                     horizontal
                     initialNumToRender={5}
-                    maxToRenderPerBatch={3}
-                    windowSize={numDays + 3}
+                    // maxToRenderPerBatch={3}
+                    windowSize={numDays * 3}
                     showsHorizontalScrollIndicator={false}
                     getItemCount={() => INFINITE_COUNT}
                     getItem={(data: unknown, index: number) => {
@@ -142,8 +154,8 @@ export function CalendarView({ viewMode }: CalendarViewProps) {
                     keyExtractor={(item, _) => item}
                     initialScrollIndex={TODAY_INDEX}
                     getItemLayout={(_, index) => ({
-                      length: columnWidth,
-                      offset: columnWidth * index,
+                      length: PixelRatio.roundToNearestPixel(columnWidth),
+                      offset: PixelRatio.roundToNearestPixel(columnWidth * index),
                       index,
                     })}
                     renderItem={renderDayColumn}

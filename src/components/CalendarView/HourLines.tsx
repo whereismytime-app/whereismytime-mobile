@@ -1,35 +1,27 @@
-import React, { memo } from 'react';
-import { View } from 'react-native';
-import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
+import { Canvas, Path, Skia } from '@shopify/react-native-skia';
+import { memo } from 'react';
+import { SharedValue, useDerivedValue } from 'react-native-reanimated';
 
 interface HourLinesProps {
   hourHeight: SharedValue<number>;
   calendarWidth: number;
 }
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-
 export const HourLines = memo(function HourLines({ hourHeight, calendarWidth }: HourLinesProps) {
+  // Build a single path for all 24 lines
+  const gridPath = useDerivedValue(() => {
+    const path = Skia.Path.Make();
+    for (let i = 0; i < 24; i++) {
+      const y = i * hourHeight.value;
+      path.moveTo(0, y);
+      path.lineTo(calendarWidth, y);
+    }
+    return path;
+  }, [calendarWidth]); // Redraws lines only if width changes
+
   return (
-    <View
-      className="pointer-events-none absolute bottom-0 left-0 right-0 top-0"
-      style={{ left: 50, top: 60 }} // Offset by TIME_AXIS_WIDTH and DAY_HEADER_HEIGHT
-    >
-      {HOURS.map((hour) => (
-        <HourLine key={hour} hourHeight={hourHeight} />
-      ))}
-    </View>
+    <Canvas style={{ position: 'absolute', inset: 0, left: 50, top: 60 }} pointerEvents="none">
+      <Path path={gridPath} color="#F3F4F6" style="stroke" strokeWidth={1} />
+    </Canvas>
   );
-});
-
-interface HourLineProps {
-  hourHeight: SharedValue<number>;
-}
-
-const HourLine = memo(function HourLine({ hourHeight }: HourLineProps) {
-  const animatedStyle = useAnimatedStyle(() => ({
-    height: hourHeight.value,
-  }));
-
-  return <Animated.View style={animatedStyle} className="border-b border-gray-100" />;
 });

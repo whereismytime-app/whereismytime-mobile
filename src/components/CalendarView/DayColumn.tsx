@@ -3,6 +3,7 @@ import { View, Text, ActivityIndicator } from 'react-native';
 import { SharedValue } from 'react-native-reanimated';
 import { EventBlock } from './EventBlock';
 import { useCalendarViewEvents } from './CalendarViewEventsProvider';
+import { DAY_HEADER_HEIGHT } from './constants';
 
 interface DayColumnProps {
   dateKey: string;
@@ -10,8 +11,6 @@ interface DayColumnProps {
   isToday: boolean;
   columnWidth: number;
 }
-
-export const DAY_HEADER_HEIGHT = 60;
 
 export const DayColumn = memo(function DayColumn({
   dateKey,

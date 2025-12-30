@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text } from 'react-native';
 import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
+import { TIME_AXIS_WIDTH } from './constants';
 
 interface TimeAxisProps {
   hourHeight: SharedValue<number>;
@@ -8,7 +9,6 @@ interface TimeAxisProps {
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
-export const TIME_AXIS_WIDTH = 50;
 
 export function TimeAxis({ hourHeight, marginTop }: TimeAxisProps) {
   return (

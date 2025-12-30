@@ -3,14 +3,13 @@ import { Text, Pressable } from 'react-native';
 import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
 import { type EventWithCategory } from '@/services/events/EventsService';
 
+import { DEFAULT_HOUR_HEIGHT, EVENT_HORIZONTAL_PADDING, MIN_EVENT_HEIGHT } from './constants';
+
 interface EventBlockProps {
   event: EventWithCategory;
   hourHeight: SharedValue<number>;
   columnWidth: number;
 }
-
-const EVENT_HORIZONTAL_PADDING = 2;
-const MIN_EVENT_HEIGHT = 20;
 
 export const EventBlock = memo(function EventBlock({
   event,
@@ -33,16 +32,29 @@ export const EventBlock = memo(function EventBlock({
   ); // Minimum 15 min for visibility
 
   const animatedStyle = useAnimatedStyle(() => {
-    const top = (startMinutes / 60) * hourHeight.value;
-    const height = Math.max((durationMinutes / 60) * hourHeight.value, MIN_EVENT_HEIGHT);
+    // 1. Calculate the scale factor relative to our static baseline
+    const scaleY = hourHeight.value / DEFAULT_HOUR_HEIGHT;
+
+    // 2. Static layout positions (never changes, so no layout pass)
+    const staticTop = (startMinutes / 60) * DEFAULT_HOUR_HEIGHT;
+    const staticHeight = Math.max((durationMinutes / 60) * DEFAULT_HOUR_HEIGHT, MIN_EVENT_HEIGHT);
 
     return {
       position: 'absolute',
-      top,
-      height,
+      top: staticTop,
+      height: staticHeight,
       left: EVENT_HORIZONTAL_PADDING,
-      right: EVENT_HORIZONTAL_PADDING,
+      // right: EVENT_HORIZONTAL_PADDING,
       width: columnWidth - EVENT_HORIZONTAL_PADDING * 2,
+      // 3. Apply GPU-accelerated transforms
+      transform: [
+        // Move the block to account for the scaling of everything above it
+        { translateY: staticTop * (scaleY - 1) },
+        // Scale the block itself
+        { scaleY: scaleY },
+        // Correct the origin to the top (default is center)
+        { translateY: (staticHeight / 2) * (scaleY - 1) },
+      ],
     };
   });
 

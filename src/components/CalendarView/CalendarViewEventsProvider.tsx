@@ -152,7 +152,13 @@ export function CalendarViewEventsProvider({ children }: CalendarViewEventsProvi
           })
           .from(events)
           .leftJoin(categories, eq(events.categoryId, categories.id))
-          .where(and(gte(events.start, startOfDay), lt(events.start, endOfDay)));
+          .where(
+            and(
+              gte(events.start, startOfDay),
+              lt(events.start, endOfDay),
+              eq(events.isAllDay, false) // TODO: handle all-day events
+            )
+          );
 
         const eventsList = results as EventWithCategory[];
         cacheRef.current.set(dateKey, eventsList);
