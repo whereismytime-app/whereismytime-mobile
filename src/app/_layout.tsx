@@ -6,6 +6,7 @@ import { SplashScreenHandler } from '@/components/SplashScreen';
 import { SQLiteProvider } from '@/db/SQLiteProvider';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { FiberProvider } from 'its-fine';
 
 function AppNavigator() {
   const { isLoggedIn } = useGoogleAuth();
@@ -31,15 +32,17 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   return (
-    <SQLiteProvider>
-      <GoogleAuthProvider>
-        <CalendarSyncProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <SplashScreenHandler />
-            <AppNavigator />
-          </GestureHandlerRootView>
-        </CalendarSyncProvider>
-      </GoogleAuthProvider>
-    </SQLiteProvider>
+    <FiberProvider>
+      <SQLiteProvider>
+        <GoogleAuthProvider>
+          <CalendarSyncProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <SplashScreenHandler />
+              <AppNavigator />
+            </GestureHandlerRootView>
+          </CalendarSyncProvider>
+        </GoogleAuthProvider>
+      </SQLiteProvider>
+    </FiberProvider>
   );
 }

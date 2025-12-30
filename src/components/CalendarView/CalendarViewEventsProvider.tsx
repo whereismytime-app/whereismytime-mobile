@@ -180,12 +180,12 @@ export function CalendarViewEventsProvider({ children }: CalendarViewEventsProvi
     forceUpdate({});
   }, []);
 
-  const contextValue: CalendarViewEventsContextValue = {
+  const contextValue = React.useMemo<CalendarViewEventsContextValue>(() => ({
     getEventsForDate,
     fetchEventsForDate,
     invalidate,
     isLoading,
-  };
+  }), [getEventsForDate, fetchEventsForDate, invalidate, isLoading]);
 
   return (
     <CalendarViewEventsContext.Provider value={contextValue}>
