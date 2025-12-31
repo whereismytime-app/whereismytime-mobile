@@ -1,12 +1,14 @@
 import type { ViewMode } from '@/components/drawer/CustomDrawerContent';
-import { Canvas, Group, useFont } from '@shopify/react-native-skia';
+import { Canvas, Group, Path, Skia, useFont } from '@shopify/react-native-skia';
 import { useContextBridge } from 'its-fine';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { PixelRatio, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   clamp,
+  scrollTo,
   useAnimatedProps,
+  useAnimatedRef,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useDerivedValue,
@@ -21,11 +23,11 @@ import {
   HOURS_IN_DAY,
   MAX_HOUR_HEIGHT,
   MIN_HOUR_HEIGHT,
-  SCROLL_INITIAL_INDEX,
+  SCROLL_TODAY_INDEX,
   SCROLL_TOTAL_DAYS,
   TIME_AXIS_WIDTH,
 } from './constants';
-import { TimeAxis } from './TimeAxis';
+import { TimeAxis, TimeAxisHeaderMask } from './TimeAxis';
 
 interface CalendarViewProps {
   viewMode: ViewMode;
@@ -43,6 +45,7 @@ export function CalendarView(props: CalendarViewProps) {
 const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: CalendarViewProps) {
   console.info('Rendering CalendarView with viewMode:', viewMode);
   const Bridge = useContextBridge();
+  const scrollViewRef = useAnimatedRef<Animated.ScrollView>();
 
   // Shared values for pinch-to-zoom
   const hourHeight = useSharedValue(DEFAULT_HOUR_HEIGHT);
@@ -50,6 +53,13 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
   const columnWidth = useSharedValue(0);
   const scrollX = useSharedValue(0);
   const scrollY = useSharedValue(0);
+
+  // Pinch state values
+  const startScrollY = useSharedValue(0);
+  const startFocalY = useSharedValue(0);
+  const startHourHeight = useSharedValue(0);
+
+  const [columnWidthReact, setColumnWidthReact] = useState(0);
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const [containerHeight, setContainerHeight] = useState<number | null>(null);
   const [isColumnWidthSet, setIsColumnWidthSet] = useState(false);
@@ -71,9 +81,11 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
   // Calculate column width once container is measured
   useEffect(() => {
     if (containerWidth === null) return;
-    columnWidth.value = PixelRatio.roundToNearestPixel(
+    const newColumnWidth = PixelRatio.roundToNearestPixel(
       (containerWidth - TIME_AXIS_WIDTH) / numDays
     );
+    columnWidth.value = newColumnWidth;
+    setColumnWidthReact(newColumnWidth);
     setIsColumnWidthSet(true);
   }, [containerWidth, numDays, columnWidth]);
 
@@ -92,15 +104,40 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
 
   // Pinch gesture handler
   const pinchGesture = Gesture.Pinch()
-    .onStart(() => {
+    .onStart((e) => {
       savedScale.value = hourHeight.value / DEFAULT_HOUR_HEIGHT;
+      startScrollY.value = scrollY.value;
+      startFocalY.value = e.focalY;
+      startHourHeight.value = hourHeight.value;
     })
     .onUpdate((e) => {
-      hourHeight.value = clamp(
+      // 1. Update zoom level
+      const newHeight = clamp(
         e.scale * savedScale.value * DEFAULT_HOUR_HEIGHT,
         MIN_HOUR_HEIGHT,
         MAX_HOUR_HEIGHT
       );
+      hourHeight.value = newHeight;
+
+      // 2. Adjust scroll to keep focal point stable
+      // Calculate time at the focal point (relative to content start)
+      // timeAtFocal = (distance from top of content to finger) / totalHeight
+      // But simpler: (scrollY + focalY - HEADER) is the pixel distance in the "time" area
+      const relativeYAtStart = startScrollY.value + startFocalY.value - DAY_HEADER_HEIGHT;
+
+      // Calculate the "time ratio" (how far down the day we are at the focal point)
+      // using the START height
+      const timeRatio = relativeYAtStart / startHourHeight.value;
+
+      // Now calculate where that same time point is with the NEW height
+      const newRelativeY = timeRatio * newHeight;
+
+      // The new scrollY should position that point back under the focalY
+      // newScrollY + focalY - HEADER = newRelativeY
+      // newScrollY = newRelativeY - focalY + HEADER
+      const targetScrollY = newRelativeY - e.focalY + DAY_HEADER_HEIGHT;
+
+      scrollTo(scrollViewRef, 0, targetScrollY, false);
     })
     .onEnd(() => {
       // Animate to nearest 5px for hour height
@@ -114,7 +151,7 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
 
   const contentOffset = useAnimatedProps(() => ({
     contentOffset: {
-      x: SCROLL_INITIAL_INDEX * columnWidth.value,
+      x: SCROLL_TODAY_INDEX * columnWidth.value,
       y: 0,
     },
   }));
@@ -129,8 +166,24 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
     { translateY: -scrollY.value },
   ]);
 
+  // Build grid lines path
+  const gridPath = useDerivedValue(() => {
+    const path = Skia.Path.Make();
+    const totalWidth = columnWidth.value * SCROLL_TOTAL_DAYS;
+    // Don't draw if width is 0 or not ready
+    if (totalWidth <= 0) return path;
+
+    for (let i = 0; i < HOURS_IN_DAY; i++) {
+      const y = i * hourHeight.value + DAY_HEADER_HEIGHT;
+      path.moveTo(0, y);
+      path.lineTo(totalWidth, y);
+    }
+    return path;
+  }, [columnWidth, hourHeight]);
+
   // Load font once at parent level to prevent flickering during virtualization
   const font = useFont(require('@/assets/fonts/Inter.ttf'), 12);
+  const headerFont = useFont(require('@/assets/fonts/Inter.ttf'), 16);
 
   return (
     <GestureHandlerRootView className="flex-1">
@@ -140,7 +193,7 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
           setContainerWidth(e.nativeEvent.layout.width);
           setContainerHeight(e.nativeEvent.layout.height);
         }}>
-        {!isColumnWidthSet || !font || !containerHeight ? null : (
+        {!isColumnWidthSet || !font || !headerFont || !containerHeight ? null : (
           <GestureDetector gesture={pinchGesture}>
             <View className="flex-1">
               {/* Layer 1: Fixed Viewport Canvas */}
@@ -148,7 +201,6 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
                 style={{
                   position: 'absolute',
                   left: TIME_AXIS_WIDTH,
-                  top: DAY_HEADER_HEIGHT,
                   right: 0,
                   bottom: 0,
                   height: containerHeight,
@@ -157,12 +209,15 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
                 <Canvas style={{ flex: 1 }}>
                   <Bridge>
                     <Group transform={canvasTransform}>
+                      <Path path={gridPath} color="#F3F4F6" style="stroke" strokeWidth={1} />
                       <CalendarDayColumns
                         scrollX={scrollX}
+                        scrollY={scrollY}
                         columnWidth={columnWidth}
                         numDays={numDays}
                         hourHeight={hourHeight}
                         font={font}
+                        headerFont={headerFont}
                       />
                     </Group>
                   </Bridge>
@@ -170,8 +225,12 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
               </View>
 
               {/* Layer 2: Scroll Interaction */}
-              <Animated.ScrollView className="flex-1" onScroll={onScrollY} scrollEventThrottle={16}>
-                <View className="flex-row">
+              <Animated.ScrollView
+                ref={scrollViewRef}
+                className="flex-1"
+                onScroll={onScrollY}
+                scrollEventThrottle={16}>
+                <View className="relative flex-row">
                   <TimeAxis hourHeight={hourHeight} marginTop={DAY_HEADER_HEIGHT} />
 
                   <Animated.View style={[{ flex: 1 }, contentHeightStyle]}>
@@ -180,12 +239,19 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
                       onScroll={onScrollX}
                       scrollEventThrottle={16}
                       animatedProps={contentOffset}
-                      style={StyleSheet.absoluteFill}>
+                      style={StyleSheet.absoluteFill}
+                      snapToInterval={columnWidthReact}
+                      decelerationRate="fast"
+                      snapToAlignment="start">
                       <Animated.View style={contentWidthStyle} />
                     </Animated.ScrollView>
                   </Animated.View>
                 </View>
               </Animated.ScrollView>
+
+              {/* Layer 3: Fixed Overlays */}
+              {/* Time Axis Header Mask - Masks the time axis when scrolling up */}
+              <TimeAxisHeaderMask />
             </View>
           </GestureDetector>
         )}

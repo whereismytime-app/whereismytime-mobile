@@ -1,95 +1,49 @@
-import React, { memo, useMemo } from 'react';
-import { Text, Pressable } from 'react-native';
-import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
-import { type EventWithCategory } from '@/services/events/EventsService';
+import { Group, Rect, SkFont, Skia, Text as SkiaText } from '@shopify/react-native-skia';
+import { SharedValue, useDerivedValue } from 'react-native-reanimated';
+import { EventWithCategory } from '~/src/services/reporting/CategoryReportService';
+import { DAY_HEADER_HEIGHT } from './constants';
 
-import { DEFAULT_HOUR_HEIGHT, EVENT_HORIZONTAL_PADDING, MIN_EVENT_HEIGHT } from './constants';
-
-interface EventBlockProps {
+export interface SkiaEventBlockProps {
   event: EventWithCategory;
   hourHeight: SharedValue<number>;
-  columnWidth: number;
+  columnWidth: SharedValue<number>;
+  font: SkFont;
 }
 
-export const EventBlock = memo(function EventBlock({
-  event,
-  hourHeight,
-  columnWidth,
-}: EventBlockProps) {
-  // Pre-calculate time values outside worklet (Date objects can't be accessed in UI runtime)
-  const startMinutes = useMemo(
-    () => (event.start != null ? event.start.getHours() * 60 + event.start.getMinutes() : 0),
-    [event.start]
-  );
-  const endMinutes = useMemo(
-    () =>
-      event.end != null ? event.end.getHours() * 60 + event.end.getMinutes() : startMinutes + 30,
-    [event.end, startMinutes]
-  );
-  const durationMinutes = useMemo(
-    () => Math.max(endMinutes - startMinutes, 15),
-    [endMinutes, startMinutes]
-  ); // Minimum 15 min for visibility
+export const EventBlock = ({ event, hourHeight, columnWidth, font }: SkiaEventBlockProps) => {
+  const startMin = event.start!.getHours() * 60 + event.start!.getMinutes();
+  const duration = (event.end!.getTime() - event.start!.getTime()) / 60000;
 
-  const animatedStyle = useAnimatedStyle(() => {
-    // 1. Calculate the scale factor relative to our static baseline
-    const scaleY = hourHeight.value / DEFAULT_HOUR_HEIGHT;
+  const y = useDerivedValue(() => (startMin / 60) * hourHeight.value + DAY_HEADER_HEIGHT);
+  const height = useDerivedValue(() => (duration / 60) * hourHeight.value);
+  const rectWidth = useDerivedValue(() => Math.max(0, columnWidth.value - 4));
 
-    // 2. Static layout positions (never changes, so no layout pass)
-    const staticTop = (startMinutes / 60) * DEFAULT_HOUR_HEIGHT;
-    const staticHeight = Math.max((durationMinutes / 60) * DEFAULT_HOUR_HEIGHT, MIN_EVENT_HEIGHT);
-
-    return {
-      position: 'absolute',
-      top: staticTop,
-      height: staticHeight,
-      left: EVENT_HORIZONTAL_PADDING,
-      // right: EVENT_HORIZONTAL_PADDING,
-      width: columnWidth - EVENT_HORIZONTAL_PADDING * 2,
-      // 3. Apply GPU-accelerated transforms
-      transform: [
-        // Move the block to account for the scaling of everything above it
-        { translateY: staticTop * (scaleY - 1) },
-        // Scale the block itself
-        { scaleY: scaleY },
-        // Correct the origin to the top (default is center)
-        { translateY: (staticHeight / 2) * (scaleY - 1) },
-      ],
-    };
+  const clipPath = useDerivedValue(() => {
+    const path = Skia.Path.Make();
+    path.addRect(Skia.XYWHRect(4, 0, Math.max(0, columnWidth.value - 8), 10000));
+    return path;
   });
 
-  const handlePress = () => {
-    // TODO: Enter reschedule mode
-    console.log('Event pressed:', event.title);
-  };
-
-  // Get category color or default
-  const backgroundColor = event.category?.color || '#3B82F6';
-
   return (
-    <Animated.View style={animatedStyle}>
-      <Pressable
-        onPress={handlePress}
-        className="h-full overflow-hidden rounded-md px-2 py-1"
-        style={{ backgroundColor }}>
-        <Text className="text-xs font-medium text-white" numberOfLines={1}>
-          {event.title}
-        </Text>
-        {event.start && (
-          <Text className="text-xs text-white/80" numberOfLines={1}>
-            {formatTime(event.start)}
-          </Text>
-        )}
-      </Pressable>
-    </Animated.View>
+    <>
+      <Rect
+        x={2}
+        y={y}
+        width={rectWidth}
+        height={height}
+        color={event.category?.color || '#3B82F6'}
+      // r={4}
+      />
+      {/* Skia Text with simple clipping */}
+      <Group clip={clipPath}>
+        <SkiaText
+          x={8}
+          y={useDerivedValue(() => y.value + 16)}
+          text={event.title}
+          font={font}
+          color="white"
+        />
+      </Group>
+    </>
   );
-});
-
-function formatTime(date: Date): string {
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  const hour12 = hours % 12 || 12;
-  const minuteStr = minutes.toString().padStart(2, '0');
-  return `${hour12}:${minuteStr} ${ampm}`;
-}
+};

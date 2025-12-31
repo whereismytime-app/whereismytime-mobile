@@ -1,70 +1,83 @@
+import { Circle, Group, Rect, SkFont, Text as SkiaText } from '@shopify/react-native-skia';
 import { memo } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
-import { SharedValue } from 'react-native-reanimated';
-import { EventBlock } from './EventBlock';
+import { SharedValue, useDerivedValue } from 'react-native-reanimated';
 import { useCalendarViewEvents } from './CalendarViewEventsProvider';
 import { DAY_HEADER_HEIGHT } from './constants';
+import { EventBlock } from './EventBlock';
 
 interface DayColumnProps {
+  index: number;
   dateKey: string;
+  columnWidth: SharedValue<number>;
   hourHeight: SharedValue<number>;
-  isToday: boolean;
-  columnWidth: number;
+  scrollY: SharedValue<number>;
+  font: SkFont;
+  headerFont: SkFont;
 }
 
 export const DayColumn = memo(function DayColumn({
+  index,
   dateKey,
-  hourHeight,
-  isToday,
   columnWidth,
+  hourHeight,
+  scrollY,
+  font,
+  headerFont,
 }: DayColumnProps) {
-  // console.log('Rendering DayColumn for dateKey:', dateKey);
-  const { events, isLoading } = useCalendarViewEvents(dateKey);
+  // Hook only runs for visible/buffered days
+  const { events } = useCalendarViewEvents(dateKey);
+  // Font is passed from parent to avoid loading on mount (flicker)
+  const transform = useDerivedValue(() => [{ translateX: index * columnWidth.value }]);
+  /*
+   * Header should counter-act the Y scroll of the canvas group to appear "sticky".
+   * Canvas group has translateY: -scrollY.
+   * So we apply translateY: scrollY to the header.
+   */
+  const headerTransform = useDerivedValue(() => [{ translateY: scrollY.value }]);
+  const rectWidth = useDerivedValue(() => columnWidth.value);
+
   const date = new Date(dateKey);
-
-  const formatDayHeader = (d: Date) => {
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const dayName = dayNames[d.getDay()];
-    const dayNum = d.getDate();
-    return { dayName, dayNum };
-  };
-
-  const { dayName, dayNum } = formatDayHeader(date);
+  const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+  const dayDate = date.getDate().toString();
+  const isToday = dateKey === new Date().toISOString().split('T')[0];
 
   return (
-    <View style={{ width: columnWidth }} className="relative flex-1">
-      {/* Day Header */}
-      <View
-        style={{ height: DAY_HEADER_HEIGHT }}
-        className={`items-center py-2 ${isToday ? 'bg-blue-50' : 'bg-white'}`}>
-        <Text className={`text-xs ${isToday ? 'text-blue-600' : 'text-gray-500'}`}>{dayName}</Text>
-        <View
-          className={`mt-1 h-8 w-8 items-center justify-center rounded-full ${
-            isToday ? 'bg-blue-600' : ''
-          }`}>
-          <Text className={`text-sm font-semibold ${isToday ? 'text-white' : 'text-gray-800'}`}>
-            {dayNum}
-          </Text>
-        </View>
-      </View>
+    <Group transform={transform}>
+      {events.map((event) => (
+        <EventBlock
+          key={event.id}
+          event={event}
+          hourHeight={hourHeight}
+          columnWidth={columnWidth}
+          font={font}
+        />
+      ))}
 
-      <View className="relative">
-        {/* Event Blocks */}
-        {events.map((event) => (
-          <EventBlock
-            key={event.id}
-            event={event}
-            hourHeight={hourHeight}
-            columnWidth={columnWidth}
+      {/* Header (Sticky) - Rendered last to be on top */}
+      <Group transform={headerTransform}>
+        {/* Header Background */}
+        <Rect x={0} y={0} width={rectWidth} height={DAY_HEADER_HEIGHT} color="white" />
+
+        {/* Header Content */}
+        <Group>
+          <SkiaText
+            x={10}
+            y={25}
+            text={dayName}
+            font={font}
+            color={isToday ? '#3B82F6' : '#6B7280'}
+            opacity={isToday ? 1 : 0.8}
           />
-        ))}
-
-        {isLoading && (
-          <View className="absolute inset-0 items-center justify-center bg-white/70">
-            <ActivityIndicator size="small" color="#3B82F6" />
-          </View>
-        )}
-      </View>
-    </View>
+          {isToday && <Circle cx={20} cy={45} r={14} color="#3B82F6" />}
+          <SkiaText
+            x={isToday ? 11 : 10}
+            y={50}
+            text={dayDate}
+            font={headerFont}
+            color={isToday ? 'white' : 'black'}
+          />
+        </Group>
+      </Group>
+    </Group>
   );
 });

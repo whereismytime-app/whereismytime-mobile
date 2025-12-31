@@ -2,31 +2,35 @@ import { SkFont } from '@shopify/react-native-skia';
 import React, { useState } from 'react';
 import { SharedValue, useAnimatedReaction } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import { DayDataWrapper } from './CalendarGrid';
-import { SCROLL_INITIAL_INDEX, SCROLL_TOTAL_DAYS } from './constants';
+import { DayColumn } from './DayColumn';
+import { SCROLL_TODAY_INDEX, SCROLL_TOTAL_DAYS } from './constants';
 
 interface CalendarDayColumnsProps {
   scrollX: SharedValue<number>;
+  scrollY: SharedValue<number>;
   columnWidth: SharedValue<number>;
   numDays: number;
   hourHeight: SharedValue<number>;
   font: SkFont;
+  headerFont: SkFont;
 }
 
 export function CalendarDayColumns({
   scrollX,
+  scrollY,
   columnWidth,
   numDays,
   hourHeight,
   font,
+  headerFont,
 }: CalendarDayColumnsProps) {
-  const [visibleStartIndex, setVisibleStartIndex] = useState(SCROLL_INITIAL_INDEX);
+  const [visibleStartIndex, setVisibleStartIndex] = useState(SCROLL_TODAY_INDEX);
 
   // Update visible index to trigger React re-renders only for this component
   // decoupling the parent from scroll updates
   useAnimatedReaction(
     () => {
-      if (columnWidth.value === 0) return SCROLL_INITIAL_INDEX;
+      if (columnWidth.value === 0) return SCROLL_TODAY_INDEX;
       return Math.floor(scrollX.value / columnWidth.value);
     },
     (index, prevIndex) => {
@@ -54,17 +58,19 @@ export function CalendarDayColumns({
     <>
       {renderIndices.map((index) => {
         const date = new Date();
-        date.setDate(date.getDate() + (index - SCROLL_INITIAL_INDEX));
+        date.setDate(date.getDate() + (index - SCROLL_TODAY_INDEX));
         const dateKey = date.toISOString().split('T')[0];
 
         return (
-          <DayDataWrapper
+          <DayColumn
             key={dateKey} // React unmounts/mounts as dates leave the window
             index={index}
             dateKey={dateKey}
             columnWidth={columnWidth}
             hourHeight={hourHeight}
+            scrollY={scrollY}
             font={font} // Pass loaded font
+            headerFont={headerFont}
           />
         );
       })}
