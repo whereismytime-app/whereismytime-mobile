@@ -17,11 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { CalendarDayColumns } from './CalendarDayColumns';
-import {
-  CalendarViewEventsProvider,
-  SelectedEvent,
-  useCalendarViewData,
-} from './CalendarViewEventsProvider';
+import { CalendarViewEventsProvider, useCalendarViewData } from './CalendarViewEventsProvider';
 import {
   DAY_HEADER_HEIGHT,
   DEFAULT_HOUR_HEIGHT,
@@ -32,8 +28,12 @@ import {
   SCROLL_TODAY_INDEX,
   SCROLL_TOTAL_DAYS,
   TIME_AXIS_WIDTH,
-} from './constants';
-import { EventRescheduler } from './EventRescheduler';
+  SelectedEvent,
+} from './common';
+import {
+  SkiaEventReschedulerRenderer,
+  SkiaEventReschedulerGestureOverlay,
+} from './SkiaEventRescheduler';
 import { TimeAxis, TimeAxisHeaderMask } from './TimeAxis';
 
 interface CalendarViewProps {
@@ -60,11 +60,19 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
   const columnWidth = useSharedValue(0);
   const scrollX = useSharedValue(0);
   const scrollY = useSharedValue(0);
+  const selectedEventShared = useSharedValue<SelectedEvent | null>(null);
 
   // Pinch state values
   const startScrollY = useSharedValue(0);
   const startFocalY = useSharedValue(0);
   const startHourHeight = useSharedValue(0);
+
+  // Event rescheduler state (shared between Skia renderer and gesture overlay)
+  const reschedulerStartMinutes = useSharedValue(0);
+  const reschedulerDurationMinutes = useSharedValue(0);
+  const reschedulerDragMode = useSharedValue<'none' | 'move' | 'resize-top' | 'resize-bottom'>(
+    'none'
+  );
 
   // const { selectedEvent, setSelectedEvent } = useCalendarViewData();
   const [selectedEvent, setSelectedEvent] = useState<SelectedEvent | null>(null);
@@ -97,6 +105,18 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
     setColumnWidthReact(newColumnWidth);
     setIsColumnWidthSet(true);
   }, [containerWidth, numDays, columnWidth]);
+
+  // Sync selectedEventShared AFTER React has rendered the rescheduler
+  // This ensures EventBlock hides only when the rescheduler is already visible
+  useEffect(() => {
+    if (selectedEvent) {
+      // Rescheduler values already set in checkEventClick
+      // Now that React has rendered SkiaEventReschedulerRenderer, hide the original EventBlock
+      selectedEventShared.value = selectedEvent;
+    } else {
+      selectedEventShared.value = null;
+    }
+  }, [selectedEvent, selectedEventShared]);
 
   // Update visible index to trigger React re-renders for the "Window"
   const onScrollX = useAnimatedScrollHandler({
@@ -201,7 +221,15 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
   const checkEventClick = useCallback(
     (dateKey: string, minutes: number, normalizedColumnX: number, dayIndex: number) => {
       try {
+        console.info(
+          'checkEventClick / Trying to get events on',
+          dateKey,
+          minutes,
+          normalizedColumnX,
+          dayIndex
+        );
         const events = getEventsForDate(dateKey);
+        console.info('checkEventClick / Got events:', 0);
         if (!events) return;
 
         // Create base date for the clicked day to match usage in CalendarViewEventsProvider
@@ -242,20 +270,37 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
             clickedEvent.end?.toLocaleTimeString()
           );
 
-          scheduleOnRN(setSelectedEvent, {
+          // Initialize rescheduler shared values IMMEDIATELY (before React state update)
+          // This ensures Skia renders the editing block without waiting for JS thread
+          const start = clickedEvent.start!;
+          const end = clickedEvent.end!;
+          reschedulerStartMinutes.value = start.getHours() * 60 + start.getMinutes();
+          reschedulerDurationMinutes.value = (end.getTime() - start.getTime()) / 60000;
+          reschedulerDragMode.value = 'none';
+
+          const value = {
             data: clickedEvent,
             dateKey,
             dayIndex,
-          });
+          };
+          // Don't set selectedEventShared here - let useEffect do it after React renders
+          // This ensures SkiaEventReschedulerRenderer is visible before EventBlock hides
+          setSelectedEvent(value);
         } else {
           // Deselect if clicked empty space
-          scheduleOnRN(setSelectedEvent, null);
+          setSelectedEvent(null);
         }
       } catch (e) {
         console.error('Error handling event click:', e);
       }
     },
-    [getEventsForDate, setSelectedEvent]
+    [
+      getEventsForDate,
+      setSelectedEvent,
+      reschedulerStartMinutes,
+      reschedulerDurationMinutes,
+      reschedulerDragMode,
+    ]
   );
 
   const handleTap = (x: number, y: number) => {
@@ -287,23 +332,18 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
     // minutes = (y - HEADER) / hourHeight * 60
     const minutes = ((gridY - DAY_HEADER_HEIGHT) / hourHeight.value) * 60;
 
-    console.log(
-      `Tap at Day: ${dayIndex}, Minutes: ${minutes}, normalizedColumnX: ${normalizedColumnX}`
-    );
-
     // 5. Get Date Key
-    // Day Index 0 is "Today" (SCROLL_TODAY_INDEX)?
-    // Wait, SCROLL_TODAY_INDEX is the index of today in the huge virtual list.
-    // The loop in CalendarDayColumns does:
-    // date.setDate(date.getDate() + (index - SCROLL_TODAY_INDEX));
+    // Day Index 0 is "Today" (SCROLL_TODAY_INDEX)
     const today = new Date();
     const targetDate = new Date(today);
     targetDate.setDate(today.getDate() + (dayIndex - SCROLL_TODAY_INDEX));
     const dateKey = targetDate.toISOString().split('T')[0];
 
-    // 6. Check Events
-    // accessing context needs to be done on JS thread usually?
-    // runOnJS needs to call a function.
+    console.log(
+      `Tap at Day: ${dateKey} (${dayIndex}), Minutes: ${minutes}, normalizedColumnX: ${normalizedColumnX}`
+    );
+
+    // 6. Check Events on JS Thread
     scheduleOnRN(checkEventClick, dateKey, minutes, normalizedColumnX, dayIndex);
   };
 
@@ -362,77 +402,109 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
           setContainerHeight(e.nativeEvent.layout.height);
         }}>
         {!isColumnWidthSet || !font || !headerFont || !containerHeight ? null : (
-          <GestureDetector gesture={composedGesture}>
-            <View className="flex-1">
-              {/* Layer 1: Fixed Viewport Canvas */}
+          <>
+            <GestureDetector gesture={composedGesture}>
+              <View className="flex-1">
+                {/* Layer 1: Fixed Viewport Canvas */}
+                <View
+                  style={{
+                    position: 'absolute',
+                    left: TIME_AXIS_WIDTH,
+                    right: 0,
+                    bottom: 0,
+                    height: containerHeight,
+                  }}
+                  pointerEvents="none">
+                  <Canvas style={{ flex: 1 }}>
+                    <Bridge>
+                      <Group transform={canvasTransform}>
+                        <Path path={gridPath} color="#F3F4F6" style="stroke" strokeWidth={1} />
+                        <CalendarDayColumns
+                          scrollX={scrollX}
+                          scrollY={scrollY}
+                          columnWidth={columnWidth}
+                          numDays={numDays}
+                          hourHeight={hourHeight}
+                          font={font}
+                          headerFont={headerFont}
+                          selectedEvent={selectedEventShared}
+                        />
+                        {/* Render Skia-based event rescheduler */}
+                        {selectedEvent && (
+                          <SkiaEventReschedulerRenderer
+                            event={selectedEvent.data}
+                            dayIndex={selectedEvent.dayIndex}
+                            columnWidth={columnWidth}
+                            hourHeight={hourHeight}
+                            startMinutes={reschedulerStartMinutes}
+                            durationMinutes={reschedulerDurationMinutes}
+                            dragMode={reschedulerDragMode}
+                            font={font}
+                          />
+                        )}
+                      </Group>
+                    </Bridge>
+                  </Canvas>
+                </View>
+
+                {/* Layer 2: Scroll Interaction */}
+                <Animated.ScrollView
+                  ref={scrollViewRef}
+                  className="flex-1"
+                  onScroll={onScrollY}
+                  scrollEventThrottle={16}>
+                  <View className="relative flex-row">
+                    <TimeAxis hourHeight={hourHeight} marginTop={DAY_HEADER_HEIGHT} />
+
+                    <Animated.View style={[{ flex: 1 }, contentHeightStyle]}>
+                      <Animated.ScrollView
+                        horizontal
+                        onScroll={onScrollX}
+                        scrollEventThrottle={16}
+                        animatedProps={contentOffset}
+                        style={StyleSheet.absoluteFill}
+                        snapToInterval={columnWidthReact}
+                        decelerationRate="fast"
+                        snapToAlignment="start">
+                        <Animated.View style={contentWidthStyle} />
+                      </Animated.ScrollView>
+                    </Animated.View>
+                  </View>
+                </Animated.ScrollView>
+
+                {/* Layer 3: Fixed Overlays */}
+                {/* Time Axis Header Mask - Masks the time axis when scrolling up */}
+                <TimeAxisHeaderMask />
+              </View>
+            </GestureDetector>
+
+            {/* Layer 4: Event Rescheduler Gesture Overlay - OUTSIDE parent GestureDetector */}
+            {selectedEvent && (
               <View
                 style={{
                   position: 'absolute',
                   left: TIME_AXIS_WIDTH,
                   right: 0,
+                  top: 0,
                   bottom: 0,
-                  height: containerHeight,
                 }}
-                pointerEvents="none">
-                <Canvas style={{ flex: 1 }}>
-                  <Bridge>
-                    <Group transform={canvasTransform}>
-                      <Path path={gridPath} color="#F3F4F6" style="stroke" strokeWidth={1} />
-                      <CalendarDayColumns
-                        scrollX={scrollX}
-                        scrollY={scrollY}
-                        columnWidth={columnWidth}
-                        numDays={numDays}
-                        hourHeight={hourHeight}
-                        font={font}
-                        headerFont={headerFont}
-                      />
-                    </Group>
-                  </Bridge>
-                </Canvas>
+                pointerEvents="box-none">
+                <SkiaEventReschedulerGestureOverlay
+                  event={selectedEvent.data}
+                  dayIndex={selectedEvent.dayIndex}
+                  columnWidth={columnWidth}
+                  hourHeight={hourHeight}
+                  scrollX={scrollX}
+                  scrollY={scrollY}
+                  startMinutes={reschedulerStartMinutes}
+                  durationMinutes={reschedulerDurationMinutes}
+                  dragMode={reschedulerDragMode}
+                  onUpdate={handleEventUpdate}
+                  onCancel={() => setSelectedEvent(null)}
+                />
               </View>
-
-              {/* Layer 2: Scroll Interaction */}
-              <Animated.ScrollView
-                ref={scrollViewRef}
-                className="flex-1"
-                onScroll={onScrollY}
-                scrollEventThrottle={16}>
-                <View className="relative flex-row">
-                  <TimeAxis hourHeight={hourHeight} marginTop={DAY_HEADER_HEIGHT} />
-
-                  <Animated.View style={[{ flex: 1 }, contentHeightStyle]}>
-                    <Animated.ScrollView
-                      horizontal
-                      onScroll={onScrollX}
-                      scrollEventThrottle={16}
-                      animatedProps={contentOffset}
-                      style={StyleSheet.absoluteFill}
-                      snapToInterval={columnWidthReact}
-                      decelerationRate="fast"
-                      snapToAlignment="start">
-                      <Animated.View style={contentWidthStyle} />
-                      {selectedEvent && columnWidthReact > 0 && (
-                        <EventRescheduler
-                          key={selectedEvent.data.id} // Re-mount if ID changes
-                          event={selectedEvent.data}
-                          dayIndex={selectedEvent.dayIndex}
-                          columnWidth={columnWidth}
-                          hourHeight={hourHeight}
-                          onUpdate={handleEventUpdate}
-                          onCancel={() => setSelectedEvent(null)}
-                        />
-                      )}
-                    </Animated.ScrollView>
-                  </Animated.View>
-                </View>
-              </Animated.ScrollView>
-
-              {/* Layer 3: Fixed Overlays */}
-              {/* Time Axis Header Mask - Masks the time axis when scrolling up */}
-              <TimeAxisHeaderMask />
-            </View>
-          </GestureDetector>
+            )}
+          </>
         )}
       </View>
     </GestureHandlerRootView>

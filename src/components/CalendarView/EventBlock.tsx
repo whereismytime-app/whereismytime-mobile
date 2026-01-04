@@ -1,30 +1,62 @@
-import { Group, Paint, Paragraph, Rect, SkFont, Skia } from '@shopify/react-native-skia';
-import { useMemo } from 'react';
+import {
+  Circle,
+  Group,
+  Paint,
+  Paragraph,
+  Rect,
+  SkFont,
+  Skia,
+  rect,
+} from '@shopify/react-native-skia';
+import { memo, useMemo } from 'react';
 import { SharedValue, useDerivedValue } from 'react-native-reanimated';
-import { DAY_HEADER_HEIGHT, EventBlockData } from './constants';
+import { DAY_HEADER_HEIGHT, EventBlockData, SelectedEvent } from './common';
 
-export interface SkiaEventBlockProps {
+/**
+ * Core props for rendering an event block (shared between EventBlock and Rescheduler)
+ */
+export interface EventBlockCoreProps {
   event: EventBlockData;
   hourHeight: SharedValue<number>;
   columnWidth: SharedValue<number>;
   font: SkFont;
+  // Optional overrides for rescheduling (live drag values)
+  startMinutesOverride?: SharedValue<number>;
+  durationMinutesOverride?: SharedValue<number>;
+  // Visual state
+  showHandles?: boolean;
+  isEditing?: boolean;
 }
 
-export const EventBlock = ({ event, hourHeight, columnWidth, font }: SkiaEventBlockProps) => {
-  const startMin = event.start!.getHours() * 60 + event.start!.getMinutes();
-  const duration = (event.end!.getTime() - event.start!.getTime()) / 60000;
+/**
+ * Core event block renderer - reusable between static and editing modes
+ */
+export const EventBlockCore = memo(function EventBlockCore({
+  event,
+  hourHeight,
+  columnWidth,
+  font,
+  startMinutesOverride,
+  durationMinutesOverride,
+  showHandles = false,
+  isEditing = false,
+}: EventBlockCoreProps) {
+  // Use overrides if provided, otherwise calculate from event
+  const defaultStartMin = event.start!.getHours() * 60 + event.start!.getMinutes();
+  const defaultDuration = (event.end!.getTime() - event.start!.getTime()) / 60000;
+
+  const startMin = useDerivedValue(() => startMinutesOverride?.value ?? defaultStartMin);
+  const duration = useDerivedValue(() => durationMinutesOverride?.value ?? defaultDuration);
+
   const width = useDerivedValue(() => columnWidth.value * event.width);
-
-  const y = useDerivedValue(() => (startMin / 60) * hourHeight.value + DAY_HEADER_HEIGHT);
-  const height = useDerivedValue(() => (duration / 60) * hourHeight.value);
+  const height = useDerivedValue(() => (duration.value / 60) * hourHeight.value);
   const rectWidth = useDerivedValue(() => Math.min(width.value, columnWidth.value - 2));
-  const x = useDerivedValue(() => columnWidth.value - rectWidth.value - 2);
+  const paragraphWidth = useDerivedValue(() => Math.max(0, rectWidth.value - 8));
 
-  const clipPath = useDerivedValue(() => {
-    const path = Skia.Path.Make();
-    path.addRect(Skia.XYWHRect(0, 0, Math.max(0, rectWidth.value), height.value + 1000));
-    return path;
-  });
+  const groupTransform = useDerivedValue(() => [
+    { translateX: columnWidth.value - rectWidth.value - 2 },
+    { translateY: (startMin.value / 60) * hourHeight.value + DAY_HEADER_HEIGHT },
+  ]);
 
   const paragraph = useMemo(() => {
     if (!font) return null;
@@ -42,24 +74,79 @@ export const EventBlock = ({ event, hourHeight, columnWidth, font }: SkiaEventBl
       .build();
   }, [event.title, font]);
 
+  const handleRadius = isEditing ? 8 : 6;
+  const handleOpacity = useDerivedValue(() => (showHandles ? 1 : 0));
+  const bottomHandleCx = useDerivedValue(() => rectWidth.value - 8);
+
   return (
-    <>
+    <Group transform={groupTransform}>
+      {/* Event Rectangle */}
       <Rect
-        x={x}
-        y={y}
+        x={0}
+        y={0}
         width={rectWidth}
         height={height}
         color={event.category?.color || '#3B82F6'}>
-        <Paint style="stroke" strokeWidth={1.5} strokeJoin={'round'} color="black" />
+        <Paint
+          style="stroke"
+          strokeJoin="round"
+          strokeWidth={isEditing ? 3 : 1.5}
+          color={isEditing ? 'cornflowerblue' : 'black'}
+        />
       </Rect>
-      {/* Skia Text with simple clipping */}
-      <Paragraph
-        paragraph={paragraph}
-        x={useDerivedValue(() => x.value + 4)}
-        y={useDerivedValue(() => y.value + 4)}
-        width={useDerivedValue(() => rectWidth.value - 8)}
+
+      {/* Event Text */}
+      {paragraph && <Paragraph paragraph={paragraph} x={4} y={4} width={paragraphWidth} />}
+
+      {/* Resize Handles */}
+      <Circle r={handleRadius} cx={8} cy={0} color="cornflowerblue" opacity={handleOpacity} />
+      <Circle
+        r={handleRadius}
+        cx={bottomHandleCx}
+        cy={height}
+        color="cornflowerblue"
+        opacity={handleOpacity}
       />
-      <Group clip={clipPath}></Group>
-    </>
+    </Group>
   );
-};
+});
+
+export interface SkiaEventBlockProps {
+  event: EventBlockData;
+  hourHeight: SharedValue<number>;
+  columnWidth: SharedValue<number>;
+  font: SkFont;
+  selectedEvent: SharedValue<SelectedEvent | null>;
+}
+
+/**
+ * Static event block - hides itself when selected (rescheduler takes over)
+ * Uses clip rect to hide when selected (opacity causes issues with sibling groups)
+ */
+export const EventBlock = memo(function EventBlock({
+  event,
+  hourHeight,
+  columnWidth,
+  font,
+  selectedEvent,
+}: SkiaEventBlockProps) {
+  // Clip to zero-size rect when selected to hide the event
+  const clipRect = useDerivedValue(() => {
+    const isSelected = selectedEvent.value?.data?.id === event.id;
+    // When selected, clip to empty rect (hides content); otherwise clip to a huge rect (shows all)
+    return isSelected ? rect(0, 0, 0, 0) : undefined;
+  });
+
+  return (
+    <Group clip={clipRect}>
+      <EventBlockCore
+        event={event}
+        hourHeight={hourHeight}
+        columnWidth={columnWidth}
+        font={font}
+        showHandles={false}
+        isEditing={false}
+      />
+    </Group>
+  );
+});

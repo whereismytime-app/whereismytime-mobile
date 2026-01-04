@@ -8,7 +8,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import { DAY_HEADER_HEIGHT, EventBlockData } from './constants';
+import { DAY_HEADER_HEIGHT, EventBlockData } from './common';
 import { useCallback } from 'react';
 
 interface EventReschedulerProps {

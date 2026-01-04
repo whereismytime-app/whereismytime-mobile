@@ -1,7 +1,7 @@
 import React, { memo, useMemo } from 'react';
 import { View, Text } from 'react-native';
 import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
-import { TIME_AXIS_WIDTH, DAY_HEADER_HEIGHT } from './constants';
+import { TIME_AXIS_WIDTH, DAY_HEADER_HEIGHT } from './common';
 
 interface TimeAxisProps {
   hourHeight: SharedValue<number>;

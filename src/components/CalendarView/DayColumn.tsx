@@ -2,7 +2,7 @@ import { Circle, Group, Rect, SkFont, Text as SkiaText } from '@shopify/react-na
 import { memo, useMemo } from 'react';
 import { SharedValue, useDerivedValue } from 'react-native-reanimated';
 import { groupEvents, useCalendarViewEvents } from './CalendarViewEventsProvider';
-import { DAY_HEADER_HEIGHT } from './constants';
+import { DAY_HEADER_HEIGHT, SelectedEvent } from './common';
 import { EventBlock } from './EventBlock';
 
 interface DayColumnProps {
@@ -11,6 +11,7 @@ interface DayColumnProps {
   columnWidth: SharedValue<number>;
   hourHeight: SharedValue<number>;
   scrollY: SharedValue<number>;
+  selectedEvent: SharedValue<SelectedEvent | null>;
   font: SkFont;
   headerFont: SkFont;
 }
@@ -21,6 +22,7 @@ export const DayColumn = memo(function DayColumn({
   columnWidth,
   hourHeight,
   scrollY,
+  selectedEvent,
   font,
   headerFont,
 }: DayColumnProps) {
@@ -28,7 +30,6 @@ export const DayColumn = memo(function DayColumn({
   const { events: rawEvents } = useCalendarViewEvents(dateKey);
   const events = useMemo(() => groupEvents(rawEvents), [rawEvents]);
 
-  // Font is passed from parent to avoid loading on mount (flicker)
   const transform = useDerivedValue(() => [{ translateX: index * columnWidth.value }]);
   /*
    * Header should counter-act the Y scroll of the canvas group to appear "sticky".
@@ -52,6 +53,7 @@ export const DayColumn = memo(function DayColumn({
           hourHeight={hourHeight}
           columnWidth={columnWidth}
           font={font}
+          selectedEvent={selectedEvent}
         />
       ))}
 

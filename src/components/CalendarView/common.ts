@@ -15,6 +15,12 @@ export type EventBlockData = EventWithCategory & {
   width: number;
 };
 
+export interface SelectedEvent {
+  data: EventBlockData;
+  dateKey: string;
+  dayIndex: number;
+}
+
 export {
   HOURS_IN_DAY,
   DAY_HEADER_HEIGHT,

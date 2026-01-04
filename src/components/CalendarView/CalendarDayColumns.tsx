@@ -1,26 +1,28 @@
 import { SkFont } from '@shopify/react-native-skia';
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import { SharedValue, useAnimatedReaction } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { DayColumn } from './DayColumn';
-import { SCROLL_TODAY_INDEX, SCROLL_TOTAL_DAYS } from './constants';
+import { SCROLL_TODAY_INDEX, SCROLL_TOTAL_DAYS, SelectedEvent } from './common';
 
 interface CalendarDayColumnsProps {
   scrollX: SharedValue<number>;
   scrollY: SharedValue<number>;
   columnWidth: SharedValue<number>;
-  numDays: number;
   hourHeight: SharedValue<number>;
+  selectedEvent: SharedValue<SelectedEvent | null>;
+  numDays: number;
   font: SkFont;
   headerFont: SkFont;
 }
 
-export function CalendarDayColumns({
+export const CalendarDayColumns = memo(function CalendarDayColumns({
   scrollX,
   scrollY,
   columnWidth,
-  numDays,
   hourHeight,
+  selectedEvent,
+  numDays,
   font,
   headerFont,
 }: CalendarDayColumnsProps) {
@@ -68,11 +70,12 @@ export function CalendarDayColumns({
             columnWidth={columnWidth}
             hourHeight={hourHeight}
             scrollY={scrollY}
-            font={font} // Pass loaded font
+            font={font}
+            selectedEvent={selectedEvent}
             headerFont={headerFont}
           />
         );
       })}
     </>
   );
-}
+});
