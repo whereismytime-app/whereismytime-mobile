@@ -1,7 +1,7 @@
 import { Circle, Group, Rect, SkFont, Text as SkiaText } from '@shopify/react-native-skia';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { SharedValue, useDerivedValue } from 'react-native-reanimated';
-import { useCalendarViewEvents } from './CalendarViewEventsProvider';
+import { groupEvents, useCalendarViewEvents } from './CalendarViewEventsProvider';
 import { DAY_HEADER_HEIGHT } from './constants';
 import { EventBlock } from './EventBlock';
 
@@ -25,7 +25,9 @@ export const DayColumn = memo(function DayColumn({
   headerFont,
 }: DayColumnProps) {
   // Hook only runs for visible/buffered days
-  const { events } = useCalendarViewEvents(dateKey);
+  const { events: rawEvents } = useCalendarViewEvents(dateKey);
+  const events = useMemo(() => groupEvents(rawEvents), [rawEvents]);
+
   // Font is passed from parent to avoid loading on mount (flicker)
   const transform = useDerivedValue(() => [{ translateX: index * columnWidth.value }]);
   /*
@@ -56,7 +58,7 @@ export const DayColumn = memo(function DayColumn({
       {/* Header (Sticky) - Rendered last to be on top */}
       <Group transform={headerTransform}>
         {/* Header Background */}
-        <Rect x={0} y={0} width={rectWidth} height={DAY_HEADER_HEIGHT} color="white" />
+        <Rect x={-5} y={0} width={rectWidth} height={DAY_HEADER_HEIGHT} color="white" />
 
         {/* Header Content */}
         <Group>
@@ -70,7 +72,7 @@ export const DayColumn = memo(function DayColumn({
           />
           {isToday && <Circle cx={20} cy={45} r={14} color="#3B82F6" />}
           <SkiaText
-            x={isToday ? 11 : 10}
+            x={isToday ? (dayDate.length === 1 ? 15 : 10) : 10}
             y={50}
             text={dayDate}
             font={headerFont}

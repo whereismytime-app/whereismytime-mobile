@@ -1,7 +1,7 @@
 import type { ViewMode } from '@/components/drawer/CustomDrawerContent';
 import { Canvas, Group, Path, Skia, useFont } from '@shopify/react-native-skia';
 import { useContextBridge } from 'its-fine';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { PixelRatio, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
@@ -15,11 +15,17 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { CalendarDayColumns } from './CalendarDayColumns';
-import { CalendarViewEventsProvider } from './CalendarViewEventsProvider';
+import {
+  CalendarViewEventsProvider,
+  SelectedEvent,
+  useCalendarViewData,
+} from './CalendarViewEventsProvider';
 import {
   DAY_HEADER_HEIGHT,
   DEFAULT_HOUR_HEIGHT,
+  EventBlockData,
   HOURS_IN_DAY,
   MAX_HOUR_HEIGHT,
   MIN_HOUR_HEIGHT,
@@ -27,6 +33,7 @@ import {
   SCROLL_TOTAL_DAYS,
   TIME_AXIS_WIDTH,
 } from './constants';
+import { EventRescheduler } from './EventRescheduler';
 import { TimeAxis, TimeAxisHeaderMask } from './TimeAxis';
 
 interface CalendarViewProps {
@@ -59,6 +66,8 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
   const startFocalY = useSharedValue(0);
   const startHourHeight = useSharedValue(0);
 
+  // const { selectedEvent, setSelectedEvent } = useCalendarViewData();
+  const [selectedEvent, setSelectedEvent] = useState<SelectedEvent | null>(null);
   const [columnWidthReact, setColumnWidthReact] = useState(0);
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const [containerHeight, setContainerHeight] = useState<number | null>(null);
@@ -143,7 +152,166 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
       // Animate to nearest 5px for hour height
       const snappedHeight = Math.round(hourHeight.value / 5) * 5;
       hourHeight.value = withTiming(snappedHeight, { duration: 1000 });
+      hourHeight.value = withTiming(snappedHeight, { duration: 1000 });
     });
+
+  const { getEventsForDate, updateEvent } = useCalendarViewData();
+
+  const handleEventUpdate = useCallback(
+    async (id: string, start: Date, end: Date) => {
+      console.info(
+        'Updating Event',
+        id,
+        start.toDateString(),
+        start.toTimeString(),
+        end.toTimeString()
+      );
+      // await updateEvent(id, start, end);
+      // Keep selected? Update local state if needed or deselect.
+      // Ideally we update the selected event data to match new position so it doesn't jump back
+      // But since the render cycle will refresh the data, we might just need to rely on that.
+      // However, if we deselect, the overlay goes away.
+      // Let's keep selected but we'd need to update the `data` in `selectedEvent`.
+      // For now, let's just log and rely on props change?
+      // Actually, if we update DB, the query hooks run, the underlying Skia view updates.
+      // The `selectedEvent` state holds a SNAPSHOT of the event at tap time.
+      // If we want the overlay to persist at the new position, we should update the snapshot.
+      // setSelectedEvent((prev) => {
+      //   if (!prev || prev.data.id !== id) return prev;
+      //   return {
+      //     ...prev,
+      //     data: {
+      //       ...prev.data,
+      //       start,
+      //       end,
+      //       // width stays same? calculated width might change if overlaps change...
+      //       // This is tricky. If we drop it, it might now overlap with something else.
+      //       // Recalculating layout is complex here.
+      //       // Simplest UX: Deselect on drop.
+      //     },
+      //   };
+      // });
+      // Actually, let's deselect for now to avoid layout sync issues until we have a better way
+      // to re-select the updated event from the fresh layout data.
+      // setSelectedEvent(null);
+    },
+    [updateEvent]
+  );
+
+  const checkEventClick = useCallback(
+    (dateKey: string, minutes: number, normalizedColumnX: number, dayIndex: number) => {
+      try {
+        const events = getEventsForDate(dateKey);
+        if (!events) return;
+
+        // Create base date for the clicked day to match usage in CalendarViewEventsProvider
+        const baseDate = new Date(dateKey);
+        baseDate.setHours(0, 0, 0, 0);
+
+        // Calculate timestamp of the tap
+        const tapTime = baseDate.getTime() + minutes * 60 * 1000;
+
+        // Search in reverse order to find the "top-most" event (rendered last)
+        let clickedEvent: EventBlockData | undefined;
+        for (let i = events.length - 1; i >= 0; i--) {
+          const e = events[i];
+          if (!e.start || !e.end) continue;
+
+          // Check time overlap
+          const start = e.start.getTime();
+          const end = e.end.getTime();
+          const matchesTime = tapTime >= start && tapTime < end;
+
+          // Check horizontal overlap
+          // Events are rendered from (1 - width) to 1 (ignoring padding)
+          const startX = 1 - e.width;
+          const endX = 1;
+          const matchesX = normalizedColumnX >= startX && normalizedColumnX <= endX;
+
+          if (matchesTime && matchesX) {
+            clickedEvent = e;
+            break;
+          }
+        }
+
+        if (clickedEvent) {
+          console.log(
+            'Clicked Event:',
+            clickedEvent.title,
+            clickedEvent.start?.toLocaleTimeString(),
+            clickedEvent.end?.toLocaleTimeString()
+          );
+
+          scheduleOnRN(setSelectedEvent, {
+            data: clickedEvent,
+            dateKey,
+            dayIndex,
+          });
+        } else {
+          // Deselect if clicked empty space
+          scheduleOnRN(setSelectedEvent, null);
+        }
+      } catch (e) {
+        console.error('Error handling event click:', e);
+      }
+    },
+    [getEventsForDate, setSelectedEvent]
+  );
+
+  const handleTap = (x: number, y: number) => {
+    'worklet';
+    // 1. Calculate "Grid" coordinates (relative to the scrollable content)
+    // The canvas is translated by -scrollX and -scrollY
+    // So worldX = localX + scrollX
+    // However, the touch event is already in the coordinate space of the container (GestureDetector view)
+    // The "TimeAxis" takes up space on the left.
+
+    // Adjust for TimeAxis
+    const gridX = x - TIME_AXIS_WIDTH + scrollX.value;
+    const gridY = y + scrollY.value;
+
+    // Check bounds
+    if (gridX < 0 || gridY < DAY_HEADER_HEIGHT || columnWidth.value <= 0) return;
+
+    // 2. Find Day Index
+    const dayIndex = Math.floor(gridX / columnWidth.value);
+
+    // 3. Find normalizedColumnX
+    const normalizedColumnX = (gridX % columnWidth.value) / columnWidth.value;
+
+    // Safety check for invalid calculations
+    if (!Number.isFinite(dayIndex)) return;
+
+    // 4. Find Time (Minutes from start of day)
+    // y = (minutes / 60) * hourHeight + HEADER
+    // minutes = (y - HEADER) / hourHeight * 60
+    const minutes = ((gridY - DAY_HEADER_HEIGHT) / hourHeight.value) * 60;
+
+    console.log(
+      `Tap at Day: ${dayIndex}, Minutes: ${minutes}, normalizedColumnX: ${normalizedColumnX}`
+    );
+
+    // 5. Get Date Key
+    // Day Index 0 is "Today" (SCROLL_TODAY_INDEX)?
+    // Wait, SCROLL_TODAY_INDEX is the index of today in the huge virtual list.
+    // The loop in CalendarDayColumns does:
+    // date.setDate(date.getDate() + (index - SCROLL_TODAY_INDEX));
+    const today = new Date();
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + (dayIndex - SCROLL_TODAY_INDEX));
+    const dateKey = targetDate.toISOString().split('T')[0];
+
+    // 6. Check Events
+    // accessing context needs to be done on JS thread usually?
+    // runOnJS needs to call a function.
+    scheduleOnRN(checkEventClick, dateKey, minutes, normalizedColumnX, dayIndex);
+  };
+
+  const tapGesture = Gesture.Tap().onEnd((e) => {
+    handleTap(e.x, e.y);
+  });
+
+  const composedGesture = Gesture.Race(pinchGesture, tapGesture);
 
   const contentWidthStyle = useAnimatedStyle(() => ({
     width: columnWidth.value * SCROLL_TOTAL_DAYS,
@@ -194,7 +362,7 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
           setContainerHeight(e.nativeEvent.layout.height);
         }}>
         {!isColumnWidthSet || !font || !headerFont || !containerHeight ? null : (
-          <GestureDetector gesture={pinchGesture}>
+          <GestureDetector gesture={composedGesture}>
             <View className="flex-1">
               {/* Layer 1: Fixed Viewport Canvas */}
               <View
@@ -244,6 +412,17 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
                       decelerationRate="fast"
                       snapToAlignment="start">
                       <Animated.View style={contentWidthStyle} />
+                      {selectedEvent && columnWidthReact > 0 && (
+                        <EventRescheduler
+                          key={selectedEvent.data.id} // Re-mount if ID changes
+                          event={selectedEvent.data}
+                          dayIndex={selectedEvent.dayIndex}
+                          columnWidth={columnWidth}
+                          hourHeight={hourHeight}
+                          onUpdate={handleEventUpdate}
+                          onCancel={() => setSelectedEvent(null)}
+                        />
+                      )}
                     </Animated.ScrollView>
                   </Animated.View>
                 </View>

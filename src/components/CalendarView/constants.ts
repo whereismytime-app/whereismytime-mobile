@@ -1,3 +1,5 @@
+import { EventWithCategory } from '@/services/events/EventsService';
+
 const HOURS_IN_DAY = 24;
 const DAY_HEADER_HEIGHT = 60;
 const TIME_AXIS_WIDTH = 50;
@@ -8,6 +10,10 @@ const MAX_HOUR_HEIGHT = 340;
 
 const SCROLL_TOTAL_DAYS = 1000; // Total scrollable range
 const SCROLL_TODAY_INDEX = 500;
+
+export type EventBlockData = EventWithCategory & {
+  width: number;
+};
 
 export {
   HOURS_IN_DAY,

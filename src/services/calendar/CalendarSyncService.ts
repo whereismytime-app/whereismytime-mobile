@@ -11,7 +11,8 @@ export interface SyncProgress {
     | 'syncing_calendars'
     | 'syncing_events'
     | 'categorizing_events'
-    | 'crunching_numbers';
+    | 'crunching_numbers'
+    | `updating_durations: ${string} (${number}/${number})`;
   currentCalendar?: string;
   totalCalendars?: number;
   processedCalendars?: number;
@@ -166,7 +167,16 @@ export class CalendarSyncService {
         status: 'crunching_numbers',
         percentage: 95,
       });
-      await this.eventDurationService.recalculateDurations(earliest, latest);
+      await this.eventDurationService.recalculateDurations(
+        earliest,
+        latest,
+        (phase: string, complete: number, total: number) => {
+          this.updateProgress({
+            status: `updating_durations: ${phase} (${complete}/${total})`,
+            percentage: 98,
+          });
+        }
+      );
 
       this.updateProgress({
         status: 'idle',
@@ -199,6 +209,12 @@ export class CalendarSyncService {
 
       throw new Error(`Sync failed: ${errors.join(', ')}`);
     }
+  }
+
+  async resetCalendarsAndEvents(): Promise<void> {
+    // Delete all Calendars and Events
+    await this.drizzle.delete(events);
+    await this.drizzle.delete(calendars);
   }
 
   private async syncCalendarEvents(

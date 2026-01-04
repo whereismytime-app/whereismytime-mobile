@@ -50,7 +50,6 @@ export function CalendarDayColumns({
     const end = Math.min(SCROLL_TOTAL_DAYS, visibleStartIndex + numDays + 5);
     const indices = [];
     for (let i = start; i <= end; i++) indices.push(i);
-    console.info('RenderIndices Recalculated:', indices);
     return indices;
   }, [visibleStartIndex, numDays]);
 

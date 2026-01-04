@@ -5,12 +5,18 @@ import { eq } from 'drizzle-orm';
 
 export class EventDurationService {
   private drizzleDB: DrizzleDB;
+  private _progressCounter: number;
 
   constructor(drizzleDB: DrizzleDB) {
     this.drizzleDB = drizzleDB;
+    this._progressCounter = 0;
   }
 
-  async recalculateDurations(from: Date, to: Date) {
+  async recalculateDurations(
+    from: Date,
+    to: Date,
+    onProgress?: (phase: string, completed: number, total: number) => void
+  ) {
     console.info('Recalculating Event Durations', {
       from: from.toISOString(),
       to: to.toISOString(),
@@ -40,14 +46,17 @@ export class EventDurationService {
         slice_duration -= 1;
         eventIdx = (eventIdx + 1) % slice_events.length;
       } while (slice_duration > 0);
+      await this._updateProgress('splitting_boundaries', i + 1, boundaries.length - 1, onProgress);
     }
 
     // TODO: Update effectiveDuration back in to the DB
-    for (const event of events) {
+    for (let i = 0; i < events.length; i++) {
+      const event = events[i];
       await this.drizzleDB
         .update(eventsTable)
         .set({ effectiveDuration: event.effectiveDuration })
         .where(eq(eventsTable.id, event.id));
+      await this._updateProgress('updating_database', i + 1, events.length, onProgress);
     }
   }
 
@@ -108,5 +117,22 @@ export class EventDurationService {
     _boundaries.sort();
 
     return _boundaries.map((date) => new Date(date));
+  }
+
+  async _updateProgress(
+    phase: string,
+    completed: number,
+    total: number,
+    onProgress?: (phase: string, completed: number, total: number) => void
+  ) {
+    if (this._progressCounter < 10) {
+      this._progressCounter++;
+      return;
+    }
+
+    this._progressCounter = 0;
+
+    await new Promise((r) => setTimeout(r, 0));
+    onProgress?.(phase, completed, total);
   }
 }

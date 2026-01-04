@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { useDrizzle } from '@/db/SQLiteProvider';
 import { events, categories } from '@/db/schema';
-import { and, gte, lt, eq } from 'drizzle-orm';
+import { and, gte, lt, eq, asc, desc } from 'drizzle-orm';
 import type { EventWithCategory } from '@/services/events/EventsService';
 
 /**
@@ -60,8 +60,117 @@ class LRUCache<K, V> {
 // Cache capacity - covers roughly a month of navigation
 const CACHE_CAPACITY = 50;
 
+import { EventBlockData } from './constants';
+
+export const groupEvents = (events: EventWithCategory[]): EventBlockData[] => {
+  if (!events || events.length === 0) return [];
+
+  const groupedEvents: EventWithCategory[][] = [];
+  let currentGroup: EventWithCategory[] = [];
+  for (const event of events) {
+    // Check overlap with current group
+    const overlaps = currentGroup.some(
+      (e) => event.start! < e.end! && event.end! > e.start! // Overlap condition
+    );
+
+    if (overlaps) {
+      currentGroup.push(event);
+    } else {
+      currentGroup = [event];
+      groupedEvents.push(currentGroup);
+    }
+  }
+
+  function layDownEqualDurationEvents(group: EventWithCategory[]) {
+    const _events = [];
+    let width = 1;
+    for (const event of group) {
+      _events.push({
+        ...event,
+        width,
+      });
+      width -= 1 / group.length;
+    }
+
+    return _events;
+  }
+
+  // Now assign widths based on group size
+  const eventBlockData: EventBlockData[] = [];
+  for (const group of groupedEvents) {
+    if (group.length === 1) {
+      eventBlockData.push({
+        ...group[0],
+        width: 1,
+      });
+      continue;
+    }
+
+    const startTimes = new Set(group.map((e) => e.start!.getTime()));
+    const endTimes = new Set(group.map((e) => e.end!.getTime()));
+
+    // If all events have the same start and end times, lay them out side by side
+    if (startTimes.size === 1 && endTimes.size === 1) {
+      eventBlockData.push(...layDownEqualDurationEvents(group));
+      continue;
+    }
+
+    const eventIdToWidthMap: Map<string, number> = new Map();
+    const boundaryMap: Map<string, { start: string[]; end: string[] }> = new Map();
+    for (const event of group) {
+      const start = event.start!.toISOString();
+      const end = event.end!.toISOString();
+      if (!boundaryMap.has(start)) {
+        boundaryMap.set(start, { start: [], end: [] });
+      }
+      if (!boundaryMap.has(end)) {
+        boundaryMap.set(end, { start: [], end: [] });
+      }
+      boundaryMap.get(start)?.start.push(event.id);
+      boundaryMap.get(end)?.end.push(event.id);
+    }
+
+    const activeIds = new Set<string>();
+
+    for (const boundary of Array.from(boundaryMap.keys()).sort()) {
+      const map = boundaryMap.get(boundary) || { start: [], end: [] };
+
+      // Clear the ending ones first.
+      for (const eventId of map.end) {
+        activeIds.delete(eventId);
+      }
+      for (const eventId of map.start) {
+        // Calculate Width based on activeIds
+        if (activeIds.size < 4) {
+          eventIdToWidthMap.set(eventId, 1 - activeIds.size * 0.25);
+        } else {
+          eventIdToWidthMap.set(eventId, 0.25);
+        }
+
+        activeIds.add(eventId);
+      }
+    }
+
+    if (activeIds.size !== 0) {
+      // throw new Error(`Invalid Width Calculation: ${group.length} / ${activeIds.size}`);
+      // Fallback for safety instead of crashing
+      console.warn(`Invalid Width Calculation for group size ${group.length}`);
+    }
+
+    eventBlockData.push(
+      ...group.map((e) => ({
+        ...e,
+        width: eventIdToWidthMap.get(e.id) || 1,
+      }))
+    );
+  }
+
+  return eventBlockData;
+};
+
 interface CalendarViewEventsContextValue {
   getEventsForDate: (dateKey: string) => EventWithCategory[] | undefined;
+  getEventLayoutsForDate: (dateKey: string) => EventBlockData[] | undefined;
   fetchEventsForDate: (dateKey: string) => Promise<EventWithCategory[]>;
   invalidate: (dateKey?: string) => void;
   isLoading: (dateKey: string) => boolean;
@@ -82,6 +191,15 @@ export function CalendarViewEventsProvider({ children }: CalendarViewEventsProvi
   const getEventsForDate = useCallback((dateKey: string): EventWithCategory[] | undefined => {
     return cacheRef.current.get(dateKey);
   }, []);
+
+  const getEventLayoutsForDate = useCallback(
+    (dateKey: string): EventBlockData[] | undefined => {
+      const events = cacheRef.current.get(dateKey);
+      if (!events) return undefined;
+      return groupEvents(events);
+    },
+    []
+  );
 
   const isLoading = useCallback((dateKey: string): boolean => {
     return loadingRef.current.has(dateKey);
@@ -158,7 +276,10 @@ export function CalendarViewEventsProvider({ children }: CalendarViewEventsProvi
               lt(events.start, endOfDay),
               eq(events.isAllDay, false) // TODO: handle all-day events
             )
-          );
+          )
+          // Sort by start ASC, end DESC, createdAt ASC
+          // DESC for end time to prioritize longer events when start times are the same
+          .orderBy(asc(events.start), desc(events.end), asc(events.createdAt));
 
         const eventsList = results as EventWithCategory[];
         cacheRef.current.set(dateKey, eventsList);
@@ -180,12 +301,16 @@ export function CalendarViewEventsProvider({ children }: CalendarViewEventsProvi
     forceUpdate({});
   }, []);
 
-  const contextValue = React.useMemo<CalendarViewEventsContextValue>(() => ({
-    getEventsForDate,
-    fetchEventsForDate,
-    invalidate,
-    isLoading,
-  }), [getEventsForDate, fetchEventsForDate, invalidate, isLoading]);
+  const contextValue = React.useMemo<CalendarViewEventsContextValue>(
+    () => ({
+      getEventsForDate,
+      getEventLayoutsForDate,
+      fetchEventsForDate,
+      invalidate,
+      isLoading,
+    }),
+    [getEventsForDate, getEventLayoutsForDate, fetchEventsForDate, invalidate, isLoading]
+  );
 
   return (
     <CalendarViewEventsContext.Provider value={contextValue}>
@@ -244,4 +369,15 @@ export function useCalendarViewEventsInvalidate() {
     );
   }
   return context.invalidate;
+}
+
+/**
+ * Hook to access the raw context data (for hit testing etc)
+ */
+export function useCalendarViewData() {
+  const context = useContext(CalendarViewEventsContext);
+  if (!context) {
+    throw new Error('useCalendarViewData must be used within a CalendarViewEventsProvider');
+  }
+  return context;
 }

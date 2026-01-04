@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, Text } from 'react-native';
 import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
 import { TIME_AXIS_WIDTH, DAY_HEADER_HEIGHT } from './constants';
@@ -10,7 +10,7 @@ interface TimeAxisProps {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-export function TimeAxis({ hourHeight, marginTop }: TimeAxisProps) {
+export const TimeAxis = memo(function TimeAxis({ hourHeight, marginTop }: TimeAxisProps) {
   return (
     <View
       style={{ width: TIME_AXIS_WIDTH, marginTop }}
@@ -20,7 +20,7 @@ export function TimeAxis({ hourHeight, marginTop }: TimeAxisProps) {
       ))}
     </View>
   );
-}
+});
 
 interface TimeSlotProps {
   hour: number;

@@ -15,7 +15,7 @@ interface CalendarSyncContextType {
   progress: SyncProgress;
   lastSyncInfo: LastSyncInfo | undefined;
   isInitialized: boolean;
-  syncAllCalendars: () => Promise<void>;
+  syncAllCalendars: (forceResync?: boolean) => Promise<void>;
 }
 
 const CalendarSyncContext = createContext<CalendarSyncContextType | undefined>(undefined);
@@ -81,12 +81,17 @@ export function CalendarSyncProvider({
     initializeSyncService();
   }, [isLoggedIn, user, dbReady, drizzle, autoSyncOnAuth]);
 
-  const syncAllCalendars = async (): Promise<void> => {
+  const syncAllCalendars = async (forceResync?: boolean): Promise<void> => {
     if (!syncService) {
       throw new Error('Sync service not initialized');
     }
 
     try {
+      if (forceResync) {
+        // Reset existing calendars and events
+        await syncService.resetCalendarsAndEvents();
+      }
+
       await syncService.syncAllCalendars();
       setLastSyncInfo(syncService.getLastSyncInfo());
     } catch (error) {

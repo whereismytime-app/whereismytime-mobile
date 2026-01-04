@@ -4,8 +4,8 @@ import { Button, Text } from 'react-native';
 import { Container } from '@/components/Container';
 import { useGoogleAuth } from '@/components/GoogleAuthProvider';
 import { ScreenContent } from '@/components/ScreenContent';
-import SyncCalendarsButton from '~/src/components/SyncCalendarsButton';
-import ReApplyCategories from '~/src/components/ReApplyCategories';
+import SyncCalendarsButton from '@/components/SyncCalendarsButton';
+import ReApplyCategories from '@/components/ReApplyCategories';
 
 export default function Home() {
   const { user, isLoading, signOut } = useGoogleAuth();
