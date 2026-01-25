@@ -76,10 +76,10 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
 
   // const { selectedEvent, setSelectedEvent } = useCalendarViewData();
   const [selectedEvent, setSelectedEvent] = useState<SelectedEvent | null>(null);
-  const [columnWidthReact, setColumnWidthReact] = useState(0);
+  const [columnWidthReact, setColumnWidthReact] = useState(-1);
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const [containerHeight, setContainerHeight] = useState<number | null>(null);
-  const [isColumnWidthSet, setIsColumnWidthSet] = useState(false);
+  const isColumnWidthSet = columnWidthReact > 0;
 
   // Get number of days to display based on view mode
   const numDays = useMemo(() => {
@@ -103,7 +103,6 @@ const CalendarViewContent = memo(function CalendarViewContent({ viewMode }: Cale
     );
     columnWidth.value = newColumnWidth;
     setColumnWidthReact(newColumnWidth);
-    setIsColumnWidthSet(true);
   }, [containerWidth, numDays, columnWidth]);
 
   // Sync selectedEventShared AFTER React has rendered the rescheduler

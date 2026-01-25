@@ -131,10 +131,12 @@ export const EventBlock = memo(function EventBlock({
   selectedEvent,
 }: SkiaEventBlockProps) {
   // Clip to zero-size rect when selected to hide the event
+  // Would have preferred opacity, but that causes issues with sibling groups in Skia
+  // https://github.com/Shopify/react-native-skia/issues/3355#issuecomment-3515624162
   const clipRect = useDerivedValue(() => {
     const isSelected = selectedEvent.value?.data?.id === event.id;
     // When selected, clip to empty rect (hides content); otherwise clip to a huge rect (shows all)
-    return isSelected ? rect(0, 0, 0, 0) : undefined;
+    return isSelected ? rect(0, 0, 0, 0) : rect(-10000, -10000, 20000, 20000);
   });
 
   return (
